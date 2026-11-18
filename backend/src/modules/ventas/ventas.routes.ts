@@ -172,12 +172,22 @@ ventasRouter.post('/', async (req, res, next) => {
 
 ventasRouter.get('/', async (req, res, next) => {
   try {
-    const { tipo, clienteId } = req.query;
+    const { tipo, clienteId, cajeroId, desde, hasta, folio } = req.query as Record<string, string>;
+    const creadoEn = (desde || hasta) ? {
+      gte: desde ? new Date(desde) : undefined,
+      lte: hasta ? new Date(`${hasta}T23:59:59`) : undefined,
+    } : undefined;
     const ventas = await prisma.venta.findMany({
-      where: { tipo: tipo ? (tipo as any) : undefined, clienteId: clienteId ? Number(clienteId) : undefined },
-      include: { cliente: { select: { nombre: true } }, cajero: { select: { nombre: true } } },
+      where: {
+        tipo: tipo ? (tipo as any) : undefined,
+        clienteId: clienteId ? Number(clienteId) : undefined,
+        cajeroId: cajeroId ? Number(cajeroId) : undefined,
+        folio: folio ? { contains: folio, mode: 'insensitive' } : undefined,
+        creadoEn,
+      },
+      include: { cliente: { select: { nombre: true } }, cajero: { select: { id: true, nombre: true } } },
       orderBy: { creadoEn: 'desc' },
-      take: 200,
+      take: 300,
     });
     res.json(ventas);
   } catch (e) { next(e); }

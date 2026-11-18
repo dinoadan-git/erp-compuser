@@ -258,3 +258,69 @@ export async function generarComprobanteRecepcion(orden: any, empresa?: any, bas
   dibujarComprobante(doc, 150, 'EMPRESA', orden, empresa, qrData);
   doc.save(`${orden.folio || 'orden'}-recepcion.pdf`);
 }
+
+const TIPO_VENTA_LABEL: Record<string, string> = {
+  TICKET: 'TICKET DE VENTA', FACTURA: 'FACTURA', COTIZACION: 'COTIZACION',
+  APARTADO: 'APARTADO', NOTA_CREDITO: 'NOTA DE CREDITO',
+};
+const FORMA_LABEL: Record<string, string> = {
+  EFECTIVO: 'Efectivo', TARJETA: 'Tarjeta', TRANSFERENCIA: 'Transferencia', CREDITO: 'Credito', MIXTO: 'Mixto',
+};
+
+// Reimprime el ticket de una venta en formato 80mm (tipo termico).
+export function generarTicketVenta(venta: any, empresa?: any) {
+  const w = 80, mx = 5, cw = w - mx * 2;
+  const det = venta.detalles || [];
+  const alto = 70 + det.length * 8 + (venta.pagos?.length || 1) * 4;
+  const doc = new jsPDF({ unit: 'mm', format: [w, alto] });
+  let y = 7;
+  const center = (t: string, yy: number) => doc.text(t, w / 2, yy, { align: 'center' });
+  const rowLR = (l: string, r: string, yy: number) => { doc.text(l, mx, yy); doc.text(r, w - mx, yy, { align: 'right' }); };
+  const sep = (yy: number) => { doc.setDrawColor(150); doc.setLineDashPattern([0.6, 0.6], 0); doc.line(mx, yy, w - mx, yy); doc.setLineDashPattern([], 0); };
+
+  dibujarMarca(doc, w / 2 - 14, y - 1);
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(12); doc.setTextColor(30, 30, 30);
+  doc.text('Compuservicios', w / 2 + 2, y, { align: 'center' });
+  y += 4; doc.setFont('helvetica', 'normal'); doc.setFontSize(6); doc.setTextColor(90);
+  center('Centro de Servicio Autorizado EPSON / Canon', y);
+  y += 3; if (empresa?.rfc) { center(`RFC: ${empresa.rfc}`, y); y += 3; }
+  if (empresa?.telefono) { center(`Tel: ${empresa.telefono}`, y); y += 3; }
+
+  y += 2; doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(30, 30, 30);
+  center(TIPO_VENTA_LABEL[venta.tipo] || 'TICKET', y); y += 4;
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(50);
+  center(`Folio: ${venta.folio}`, y); y += 3.5;
+  center(new Date(venta.creadoEn || Date.now()).toLocaleString('es-MX'), y); y += 3.5;
+  if (venta.cajero?.nombre) { center(`Atendio: ${venta.cajero.nombre}`, y); y += 3.5; }
+  if (venta.cliente?.nombre) { center(`Cliente: ${venta.cliente.nombre}`, y); y += 3.5; }
+
+  y += 1; sep(y); y += 4;
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(6.5); doc.setTextColor(90);
+  rowLR('DESCRIPCION', 'IMPORTE', y); y += 3; sep(y); y += 3.5;
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(30, 30, 30);
+  for (const d of det) {
+    const desc = doc.splitTextToSize(String(d.descripcion || d.producto?.nombre || ''), cw - 22);
+    doc.text(desc, mx, y);
+    doc.text(money(d.importe), w - mx, y, { align: 'right' });
+    y += desc.length * 3.2;
+    doc.setTextColor(120); doc.setFontSize(6.5);
+    doc.text(`${Number(d.cantidad)} x ${money(d.precioUnit)}`, mx, y);
+    doc.setTextColor(30, 30, 30); doc.setFontSize(7.5);
+    y += 4;
+  }
+  sep(y); y += 4;
+  doc.setFontSize(8);
+  rowLR('Subtotal', money(venta.subtotal), y); y += 4;
+  rowLR('IVA', money(venta.impuestos), y); y += 4;
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(10);
+  rowLR('TOTAL', money(venta.total), y); y += 5;
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5);
+  for (const p of (venta.pagos || [])) { rowLR(FORMA_LABEL[p.forma] || p.forma, money(p.monto), y); y += 4; }
+
+  y += 2; sep(y); y += 4;
+  doc.setFontSize(7); doc.setTextColor(90);
+  center('Gracias por su preferencia', y); y += 3;
+  center(`WhatsApp: ${MARCA.whatsapp}`, y);
+
+  doc.save(`${venta.folio || 'ticket'}.pdf`);
+}

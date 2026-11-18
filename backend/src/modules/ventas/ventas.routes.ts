@@ -4,6 +4,7 @@ import { prisma } from '../../lib/prisma.js';
 import { siguienteFolio } from '../../lib/folios.js';
 import { requireAuth, requireRole } from '../../middleware/auth.js';
 import { aplicarMovimiento, calcularTotales, corteAbierto, r2, type ItemVenta } from './ventas.service.js';
+import { notificar } from '../../lib/notificaciones.js';
 
 export const ventasRouter = Router();
 ventasRouter.use(requireAuth);
@@ -206,11 +207,15 @@ ventasRouter.post('/:id/pago', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-// Cobro de una orden de trabajo terminada -> genera una venta ligada.
+// Cobro de una orden de trabajo terminada -> genera una venta ligada,
+// desglosando cada refaccion como partida + la mano de obra / diagnostico.
 ventasRouter.post('/orden/:ordenId', async (req, res, next) => {
   try {
     const ordenId = Number(req.params.ordenId);
-    const orden = await prisma.ordenTrabajo.findUnique({ where: { id: ordenId }, include: { venta: true } });
+    const orden = await prisma.ordenTrabajo.findUnique({
+      where: { id: ordenId },
+      include: { venta: true, consumos: { include: { producto: true } }, cliente: true, equipo: true },
+    });
     if (!orden) return res.status(404).json({ error: 'Orden no encontrada' });
     if (orden.venta) return res.status(409).json({ error: 'La orden ya tiene una venta' });
 
@@ -220,21 +225,42 @@ ventasRouter.post('/orden/:ordenId', async (req, res, next) => {
       refPago: z.string().optional(),
     }).parse(req.body);
 
-    const base = Number(orden.cotizacionTotal) || Number(orden.costoDiagnostico) || 0;
-    const impuestos = r2(base * 0.16);
-    const total = r2(base + impuestos);
+    // Partidas: una por refaccion consumida + mano de obra (cotizacion) o diagnostico.
+    const detalles: any[] = [];
+    let subtotal = 0, impuestos = 0;
+    for (const c of orden.consumos) {
+      const iva = Number(c.producto.tasaIva) || 16;
+      const net = Number(c.cantidad) * Number(c.precioUnit);
+      const ivaM = r2(net * iva / 100);
+      subtotal += net; impuestos += ivaM;
+      detalles.push({ productoId: c.productoId, descripcion: c.producto.nombre, cantidad: c.cantidad, precioUnit: c.precioUnit, tasaIva: iva, importe: r2(net + ivaM) });
+    }
+    const servId = await servicioReparacionId();
+    const labor = Number(orden.cotizacionTotal);
+    const diag = Number(orden.costoDiagnostico);
+    if (labor > 0) {
+      const ivaM = r2(labor * 0.16); subtotal += labor; impuestos += ivaM;
+      detalles.push({ productoId: servId, descripcion: `Mano de obra y servicio (orden ${orden.folio})`, cantidad: 1, precioUnit: labor, tasaIva: 16, importe: r2(labor + ivaM) });
+    } else if (diag > 0) {
+      const ivaM = r2(diag * 0.16); subtotal += diag; impuestos += ivaM;
+      detalles.push({ productoId: servId, descripcion: `Diagnostico (orden ${orden.folio})`, cantidad: 1, precioUnit: diag, tasaIva: 16, importe: r2(diag + ivaM) });
+    }
+    subtotal = r2(subtotal); impuestos = r2(impuestos);
+    const total = r2(subtotal + impuestos);
+    if (total <= 0) return res.status(400).json({ error: 'No hay importe a cobrar: captura la cotizacion o consume refacciones.' });
+
     const corte = await corteAbierto(req.user!.id);
     const folio = await siguienteFolio('VENTA', 'TK-');
-
     const venta = await prisma.venta.create({
       data: {
         folio, tipo: 'TICKET', clienteId: orden.clienteId, cajeroId: req.user!.id, corteCajaId: corte?.id,
-        ordenTrabajoId: ordenId, subtotal: base, impuestos, total,
-        detalles: { create: [{ productoId: await servicioReparacionId(), descripcion: `Reparacion orden ${orden.folio}`, cantidad: 1, precioUnit: base, tasaIva: 16, importe: total }] },
+        ordenTrabajoId: ordenId, subtotal, impuestos, total,
+        detalles: { create: detalles },
         pagos: { create: [{ forma, monto: monto ?? total, refPago }] },
       },
       include: { detalles: true, pagos: true },
     });
+    await notificar({ evento: 'ticket', orden, venta });
     res.status(201).json(venta);
   } catch (e) { next(e); }
 });

@@ -171,7 +171,9 @@ function Detalle({ orden, tecnicos, user, onBack, onReload }: { orden: any; tecn
   }
 
   const [formaPago, setFormaPago] = useState('EFECTIVO');
-  const baseCobro = Number(orden.cotizacionTotal) > 0 ? Number(orden.cotizacionTotal) : Number(orden.costoDiagnostico) || 0;
+  const partsNet = (orden.consumos || []).reduce((s: number, c: any) => s + Number(c.cantidad) * Number(c.precioUnit), 0);
+  const laborNet = Number(orden.cotizacionTotal) > 0 ? Number(orden.cotizacionTotal) : Number(orden.costoDiagnostico) || 0;
+  const baseCobro = partsNet + laborNet;
   const totalCobro = Math.round(baseCobro * 1.16 * 100) / 100;
   async function cobrar() {
     try {
@@ -270,9 +272,9 @@ function Detalle({ orden, tecnicos, user, onBack, onReload }: { orden: any; tecn
           ) : (
             <div className="flex flex-wrap items-end gap-3">
               <div>
-                <div className="text-slate-500 text-xs">Importe a cobrar (cotizacion + IVA)</div>
+                <div className="text-slate-500 text-xs">Importe a cobrar (refacciones + mano de obra + IVA)</div>
                 <div className="text-2xl font-bold text-primary-700">${totalCobro.toFixed(2)}</div>
-                <div className="text-xs text-slate-400">Base ${baseCobro.toFixed(2)} + IVA</div>
+                <div className="text-xs text-slate-400">Refacciones ${partsNet.toFixed(2)} + Mano de obra ${laborNet.toFixed(2)} + IVA</div>
               </div>
               <select value={formaPago} onChange={(e) => setFormaPago(e.target.value)} className="border rounded px-2 py-1">
                 <option value="EFECTIVO">Efectivo</option><option value="TARJETA">Tarjeta</option><option value="TRANSFERENCIA">Transferencia</option><option value="CREDITO">Credito</option>
@@ -329,6 +331,28 @@ function Detalle({ orden, tecnicos, user, onBack, onReload }: { orden: any; tecn
             ))}
             {(orden.bitacora || []).length === 0 && <li className="text-slate-400">Sin movimientos</li>}
           </ol>
+        </div>
+
+        {/* Notificaciones al cliente */}
+        <div className="bg-white rounded-xl shadow p-4 text-sm md:col-span-2">
+          <h2 className="font-semibold mb-2">Notificaciones al cliente</h2>
+          {(orden.notificaciones || []).length === 0 ? (
+            <p className="text-slate-400">Aun no se han generado notificaciones.</p>
+          ) : (
+            <ul className="space-y-2">
+              {orden.notificaciones.map((n: any) => (
+                <li key={n.id} className="border rounded p-2">
+                  <div className="flex justify-between text-xs text-slate-500">
+                    <span>{n.evento.toUpperCase()} · {n.canal} {n.destino ? `→ ${n.destino}` : ''}</span>
+                    <span className={n.estatus === 'ENVIADA' ? 'text-green-600' : n.estatus === 'SIN_DESTINO' ? 'text-amber-600' : 'text-slate-400'}>{n.estatus}</span>
+                  </div>
+                  <div className="mt-1">{n.mensaje}</div>
+                  <button onClick={() => navigator.clipboard?.writeText(n.mensaje)} className="text-primary-600 text-xs mt-1">Copiar mensaje</button>
+                </li>
+              ))}
+            </ul>
+          )}
+          <p className="text-xs text-slate-400 mt-2">Los mensajes se generan automaticamente (recepcion, autorizacion, listo, cobro). El envio automatico por WhatsApp/correo se activa al configurar el proveedor; mientras tanto, cópialos para enviarlos.</p>
         </div>
       </div>
     </div>

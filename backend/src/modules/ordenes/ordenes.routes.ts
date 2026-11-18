@@ -6,6 +6,7 @@ import { prisma } from '../../lib/prisma.js';
 import { siguienteFolio } from '../../lib/folios.js';
 import { requireAuth, requireRole } from '../../middleware/auth.js';
 import { aplicarMovimiento } from '../../lib/inventario.js';
+import { notificar } from '../../lib/notificaciones.js';
 
 export const ordenesRouter = Router();
 ordenesRouter.use(requireAuth);
@@ -61,8 +62,9 @@ ordenesRouter.post('/', async (req, res, next) => {
         qrToken: randomUUID(),
         bitacora: { create: { estatus: 'RECIBIDO', nota: 'Equipo recibido', usuarioId: req.user!.id } },
       },
-      include: { bitacora: true },
+      include: { bitacora: true, cliente: true, equipo: true },
     });
+    await notificar({ evento: 'recepcion', orden });
     res.status(201).json(orden);
   } catch (e) { next(e); }
 });
@@ -96,7 +98,8 @@ ordenesRouter.get('/:id', async (req, res, next) => {
       },
     });
     if (!orden) return res.status(404).json({ error: 'Orden no encontrada' });
-    res.json(orden);
+    const notificaciones = await prisma.notificacion.findMany({ where: { ordenId: orden.id }, orderBy: { creadoEn: 'desc' } });
+    res.json({ ...orden, notificaciones });
   } catch (e) { next(e); }
 });
 
@@ -122,8 +125,11 @@ ordenesRouter.post('/:id/estatus', async (req, res, next) => {
         entregadaEn: estatus === 'ENTREGADO' ? new Date() : undefined,
         bitacora: { create: { estatus, nota, soloInterno: soloInterno ?? false, usuarioId: req.user!.id } },
       },
+      include: { cliente: true, equipo: true },
     });
-    // TODO: si AVISA_CLIENTE[estatus], encolar notificacion WhatsApp/correo.
+    // Notificar al cliente en los eventos clave.
+    if (estatus === 'ESPERANDO_AUTORIZACION') await notificar({ evento: 'autorizacion', orden });
+    else if (estatus === 'LISTO_ENTREGA_REPARADO' || estatus === 'LISTO_ENTREGA_SIN_REPARAR') await notificar({ evento: 'listo', orden });
     res.json({ orden, avisaCliente: AVISA_CLIENTE[estatus] });
   } catch (e) { next(e); }
 });

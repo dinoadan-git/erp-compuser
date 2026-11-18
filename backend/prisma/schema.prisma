@@ -696,3 +696,28 @@ model Configuracion {
   clave String @id
   valor Json
 }
+
+enum EstatusNotificacion {
+  SIMULADA     // generada; se envia de verdad al configurar WhatsApp/correo
+  ENVIADA
+  SIN_DESTINO
+  ERROR
+}
+
+// Notificaciones al cliente generadas por eventos (recepcion, autorizacion,
+// listo, ticket, factura). Se envian de verdad cuando hay proveedor configurado.
+model Notificacion {
+  id        Int                 @id @default(autoincrement())
+  evento    String
+  canal     String              // WHATSAPP | EMAIL | NINGUNO
+  destino   String?
+  mensaje   String
+  estatus   EstatusNotificacion @default(SIMULADA)
+  clienteId Int?
+  ordenId   Int?
+  ventaId   Int?
+  creadoEn  DateTime            @default(now())
+
+  @@index([ordenId])
+  @@index([creadoEn])
+}

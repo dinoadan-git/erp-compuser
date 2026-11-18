@@ -9,6 +9,18 @@ import { requireAuth, requireRole } from '../../middleware/auth.js';
 export const ordenesRouter = Router();
 ordenesRouter.use(requireAuth);
 
+// Lista de tecnicos activos (para asignar en la orden). Accesible a recepcion.
+ordenesRouter.get('/tecnicos', async (_req, res, next) => {
+  try {
+    const tecnicos = await prisma.usuario.findMany({
+      where: { activo: true, roles: { has: 'TECNICO' } },
+      select: { id: true, nombre: true },
+      orderBy: { nombre: 'asc' },
+    });
+    res.json(tecnicos);
+  } catch (e) { next(e); }
+});
+
 // Estatus que disparan aviso al cliente (segun el catalogo del documento).
 const AVISA_CLIENTE: Record<EstatusOrden, boolean> = {
   RECIBIDO: true,

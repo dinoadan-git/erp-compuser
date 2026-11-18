@@ -205,6 +205,7 @@ model Cliente {
   ordenes       OrdenTrabajo[]
   ventas        Venta[]
   proyectos     Proyecto[]
+  polizas       PolizaMantenimiento[]
 
   @@index([nombre])
   @@index([rfc])
@@ -589,6 +590,47 @@ model Proyecto {
 
   etapas      EtapaProyecto[]
   visitas     VisitaProyecto[]
+  pagos       PagoProyecto[]
+}
+
+enum ConceptoPagoProyecto {
+  ANTICIPO
+  AVANCE
+  CIERRE
+}
+
+model PagoProyecto {
+  id         Int                  @id @default(autoincrement())
+  proyectoId Int
+  proyecto   Proyecto             @relation(fields: [proyectoId], references: [id], onDelete: Cascade)
+  concepto   ConceptoPagoProyecto
+  monto      Decimal              @db.Decimal(14, 2)
+  nota       String?
+  fecha      DateTime             @default(now())
+}
+
+model PolizaMantenimiento {
+  id        Int       @id @default(autoincrement())
+  clienteId Int
+  cliente   Cliente   @relation(fields: [clienteId], references: [id])
+  nombre    String
+  inicio    DateTime
+  fin       DateTime?
+  total     Decimal   @default(0) @db.Decimal(14, 2)
+  activa    Boolean   @default(true)
+  creadoEn  DateTime  @default(now())
+
+  servicios ServicioProgramado[]
+}
+
+model ServicioProgramado {
+  id          Int                 @id @default(autoincrement())
+  polizaId    Int
+  poliza      PolizaMantenimiento @relation(fields: [polizaId], references: [id], onDelete: Cascade)
+  fecha       DateTime
+  descripcion String
+  realizado   Boolean             @default(false)
+  realizadoEn DateTime?
 }
 
 model EtapaProyecto {

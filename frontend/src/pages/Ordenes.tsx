@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
+import { generarOrdenPdf } from '../lib/ordenPdf';
 
 const ESTATUS_LABEL: Record<string, string> = {
   RECIBIDO: 'Recibido', EN_DIAGNOSTICO: 'En diagnostico', ESPERANDO_AUTORIZACION: 'Esperando autorizacion',
@@ -152,10 +153,22 @@ function Detalle({ orden, tecnicos, user, onBack, onReload }: { orden: any; tecn
   const [estatus, setEstatus] = useState(orden.estatus);
   const [nota, setNota] = useState('');
   const [asignar, setAsignar] = useState('');
+  const [empresa, setEmpresa] = useState<any>(null);
+  const [q, setQ] = useState('');
+  const [prods, setProds] = useState<any[]>([]);
   const [ed, setEd] = useState({
     diagnostico: orden.diagnostico ?? '', costoDiagnostico: Number(orden.costoDiagnostico) || 0,
     cotizacionTotal: Number(orden.cotizacionTotal) || 0, tipoGarantia: orden.tipoGarantia,
   });
+
+  useEffect(() => { api.get('/config/empresa').then((r) => setEmpresa(r.data)).catch(() => {}); }, []);
+  useEffect(() => { if (q.trim()) api.get('/catalogo/productos', { params: { q } }).then((r) => setProds(r.data)); else setProds([]); }, [q]);
+
+  async function agregarRefaccion(productoId: number) {
+    const cant = prompt('Cantidad a consumir:'); if (!cant) return;
+    try { await api.post(`/ordenes/${orden.id}/consumos`, { productoId, cantidad: Number(cant) }); setMsg('Refaccion consumida (inventario descontado)'); setQ(''); setProds([]); onReload(); }
+    catch (e: any) { setMsg(e?.response?.data?.error ?? 'Error'); }
+  }
 
   async function cambiarEstatus() {
     try { await api.post(`/ordenes/${orden.id}/estatus`, { estatus, nota: nota || undefined }); setMsg('Estatus actualizado'); setNota(''); onReload(); }
@@ -183,7 +196,10 @@ function Detalle({ orden, tecnicos, user, onBack, onReload }: { orden: any; tecn
           <h1 className="text-2xl font-bold">{orden.folio}</h1>
           <p className="text-slate-500 text-sm">{orden.cliente?.nombre} · {orden.equipo?.tipo} {orden.equipo?.marca} {orden.equipo?.modelo} ({orden.equipo?.numeroSerie || 's/n'})</p>
         </div>
-        <span className="px-3 py-1 rounded-full bg-primary-50 text-primary-700 text-sm font-medium">{ESTATUS_LABEL[orden.estatus] ?? orden.estatus}</span>
+        <div className="flex items-center gap-2">
+          <span className="px-3 py-1 rounded-full bg-primary-50 text-primary-700 text-sm font-medium">{ESTATUS_LABEL[orden.estatus] ?? orden.estatus}</span>
+          <button onClick={() => generarOrdenPdf(orden, empresa)} className="bg-slate-800 text-white rounded px-3 py-1.5 text-sm">Generar PDF</button>
+        </div>
       </div>
 
       <div className="grid md:grid-cols-2 gap-4">
@@ -223,6 +239,39 @@ function Detalle({ orden, tecnicos, user, onBack, onReload }: { orden: any; tecn
             <label>Garantia<select className="w-full border rounded px-2 py-1" value={ed.tipoGarantia} onChange={(e) => setEd({ ...ed, tipoGarantia: e.target.value })}><option value="NINGUNA">Ninguna</option><option value="EPSON">EPSON</option><option value="TALLER">Taller</option></select></label>
           </div>
           <button onClick={guardarEdicion} className="bg-primary-600 text-white rounded px-4 py-1">Guardar cambios</button>
+        </div>
+
+        {/* Refacciones / materiales */}
+        <div className="bg-white rounded-xl shadow p-4 text-sm md:col-span-2">
+          <h2 className="font-semibold mb-2">Refacciones y materiales usados</h2>
+          {(orden.consumos || []).length > 0 ? (
+            <table className="w-full mb-3">
+              <thead className="text-left text-xs text-slate-500"><tr><th className="py-1">Producto</th><th className="py-1 text-right">Cant.</th><th className="py-1 text-right">P. unit</th><th className="py-1 text-right">Importe</th></tr></thead>
+              <tbody>
+                {orden.consumos.map((c: any) => (
+                  <tr key={c.id} className="border-t">
+                    <td className="py-1">{c.producto?.nombre ?? `#${c.productoId}`}</td>
+                    <td className="py-1 text-right">{Number(c.cantidad)}</td>
+                    <td className="py-1 text-right">${Number(c.precioUnit).toFixed(2)}</td>
+                    <td className="py-1 text-right">${(Number(c.cantidad) * Number(c.precioUnit)).toFixed(2)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : <p className="text-slate-400 mb-3">Sin refacciones consumidas.</p>}
+          <div className="relative">
+            <input className="w-full border rounded px-2 py-1" placeholder="Buscar refaccion por nombre o SKU para consumir..." value={q} onChange={(e) => setQ(e.target.value)} />
+            {prods.length > 0 && (
+              <ul className="border rounded mt-1 max-h-40 overflow-y-auto">
+                {prods.map((p) => (
+                  <li key={p.id} onClick={() => agregarRefaccion(p.id)} className="px-2 py-1 hover:bg-slate-100 cursor-pointer flex justify-between">
+                    <span>{p.nombre} <span className="text-xs text-slate-400">({p.sku})</span></span>
+                    <span className="text-xs text-slate-500">stock {Number(p.disponible)}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         </div>
 
         {/* Bitacora */}

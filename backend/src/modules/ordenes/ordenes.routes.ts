@@ -5,6 +5,7 @@ import type { EstatusOrden } from '@prisma/client';
 import { prisma } from '../../lib/prisma.js';
 import { siguienteFolio } from '../../lib/folios.js';
 import { requireAuth, requireRole } from '../../middleware/auth.js';
+import { aplicarMovimiento } from '../../lib/inventario.js';
 
 export const ordenesRouter = Router();
 ordenesRouter.use(requireAuth);
@@ -172,6 +173,35 @@ ordenesRouter.patch('/:id', async (req, res, next) => {
       data: { ...campos, ...(autorizada ? { autorizadaEn: new Date() } : {}) },
     });
     res.json(orden);
+  } catch (e) { next(e); }
+});
+
+// Consumir una refaccion del inventario dentro de la orden.
+ordenesRouter.post('/:id/consumos', async (req, res, next) => {
+  try {
+    const ordenId = Number(req.params.id);
+    const { productoId, cantidad } = z.object({
+      productoId: z.coerce.number(), cantidad: z.coerce.number().positive(),
+    }).parse(req.body);
+
+    const producto = await prisma.producto.findUnique({ where: { id: productoId }, include: { existencia: true, precios: true } });
+    if (!producto) return res.status(404).json({ error: 'Producto no encontrado' });
+
+    const controlaStock = producto.tipo !== 'SERVICIO' && producto.controlStock;
+    if (controlaStock && Number(producto.existencia?.disponible ?? 0) < cantidad) {
+      return res.status(400).json({ error: `Stock insuficiente de ${producto.nombre} (disponible ${Number(producto.existencia?.disponible ?? 0)})` });
+    }
+    const costoUnit = Number(producto.costoPromedio);
+    const precioUnit = Number(producto.precios.find((p) => p.lista === 'PUBLICO')?.precio ?? 0);
+
+    const consumo = await prisma.$transaction(async (tx) => {
+      const c = await tx.consumoRefaccion.create({ data: { ordenId, productoId, cantidad, costoUnit, precioUnit } });
+      if (controlaStock) {
+        await aplicarMovimiento(tx, { productoId, tipo: 'SALIDA', cantidad, motivo: `Refaccion orden ${ordenId}`, refTipo: 'ORDEN', refId: String(ordenId), usuarioId: req.user!.id });
+      }
+      return c;
+    });
+    res.status(201).json(consumo);
   } catch (e) { next(e); }
 });
 

@@ -60,10 +60,10 @@ npm run dev                      # app en http://localhost:5173
 | 3.1 | Clientes (CRM) | ✅ núcleo (CRUD + contactos/direcciones/equipos) |
 | 3.6 | Órdenes de trabajo | ✅ núcleo (recepción, folio, QR, flujo de 12 estatus, bitácora) |
 | 3.8 | Portal del cliente | ✅ consulta pública por folio/QR |
-| 3.2 | Productos y servicios | 🧱 andamiaje + modelo de datos |
-| 3.3 | Inventario (kardex) | 🧱 andamiaje + modelo de datos |
+| 3.2 | Productos y servicios | 🟡 parcial (listado/alta de productos para el POS) |
+| 3.3 | Inventario (kardex) | 🟡 parcial (movimientos y existencias se actualizan desde ventas) |
 | 3.4 | Compras | 🧱 andamiaje + modelo de datos |
-| 3.5 | Ventas de mostrador (POS) | 🧱 andamiaje + modelo de datos |
+| 3.5 | Ventas de mostrador (POS) | ✅ corte de caja, venta + descuento de stock, formas de pago, cobro de órdenes, devoluciones/NC; CFDI pendiente de PAC |
 | 3.7 | Proyectos y servicios especiales | 🧱 andamiaje + modelo de datos |
 | 3.9 | Gastos | 🧱 andamiaje + modelo de datos |
 | 3.10 | Reportes y analítica | 🧱 andamiaje |

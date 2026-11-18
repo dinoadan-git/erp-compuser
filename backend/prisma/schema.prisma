@@ -78,6 +78,7 @@ enum TipoVenta {
   FACTURA
   COTIZACION
   APARTADO
+  NOTA_CREDITO
 }
 
 // Catalogo de estatus de la orden de trabajo (12 estados del documento)
@@ -443,6 +444,11 @@ model Venta {
   impuestos  Decimal    @default(0) @db.Decimal(14, 2)
   total      Decimal    @default(0) @db.Decimal(14, 2)
   cfdiUuid   String?    // folio fiscal una vez timbrado por el PAC
+  // Devoluciones / notas de credito: enlazan a la venta original
+  ventaOrigenId Int?
+  ventaOrigen   Venta?   @relation("Devoluciones", fields: [ventaOrigenId], references: [id])
+  devoluciones  Venta[]  @relation("Devoluciones")
+  motivo     String?
   creadoEn   DateTime   @default(now())
 
   detalles   DetalleVenta[]

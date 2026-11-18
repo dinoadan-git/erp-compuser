@@ -6,6 +6,7 @@ import Dashboard from './pages/Dashboard';
 import Clientes from './pages/Clientes';
 import Ordenes from './pages/Ordenes';
 import Portal from './pages/Portal';
+import Ventas from './pages/Ventas';
 import Placeholder from './pages/Placeholder';
 
 function Protected({ children }: { children: JSX.Element }) {
@@ -25,7 +26,7 @@ export default function App() {
         <Route path="/catalogo" element={<Placeholder titulo="Productos y servicios" />} />
         <Route path="/inventario" element={<Placeholder titulo="Inventario" />} />
         <Route path="/compras" element={<Placeholder titulo="Compras" />} />
-        <Route path="/ventas" element={<Placeholder titulo="Ventas (POS)" />} />
+        <Route path="/ventas" element={<Ventas />} />
         <Route path="/proyectos" element={<Placeholder titulo="Proyectos" />} />
         <Route path="/gastos" element={<Placeholder titulo="Gastos" />} />
         <Route path="/reportes" element={<Placeholder titulo="Reportes" />} />

@@ -2,7 +2,7 @@
 
 Sistema de administración para un **Centro de Servicio Autorizado EPSON**: órdenes de trabajo de reparación, mostrador (POS), inventario, compras, proyectos, portal del cliente, gastos y reportes. Basado en el documento de definición de módulos (Nov 2026).
 
-> **Estado:** base del proyecto (andamiaje). El núcleo (Clientes, Equipos, Órdenes de trabajo y Portal del cliente) está funcional; los demás módulos están estructurados y listos para desarrollarse por etapas.
+> **Estado:** los **11 módulos** del documento están implementados y verificados de extremo a extremo contra PostgreSQL. Integraciones externas (CFDI/PAC, WhatsApp/correo, pasarela de pago) quedan preparadas y "enchufables".
 
 ---
 
@@ -67,7 +67,7 @@ npm run dev                      # app en http://localhost:5173
 | 3.7 | Proyectos y servicios especiales | ✅ proyectos con etapas/avance/horas, visitas, materiales (descuentan inventario), pagos anticipo/avance/cierre, pólizas con servicios programados |
 | 3.9 | Gastos | ✅ gastos por categoría/centro de costo, caja chica con reposiciones, nómina como % de lo cobrado en órdenes |
 | 3.10 | Reportes y analítica | ✅ KPIs, órdenes por estatus, productividad/SLA, utilidad y margen, inventario valorizado, gastos vs ingresos, export CSV |
-| 3.11 | Configuración y seguridad | 🧱 andamiaje (auth/roles/auditoría en el modelo) |
+| 3.11 | Configuración y seguridad | ✅ empresa/datos fiscales, usuarios/roles/PIN, plantillas WhatsApp/correo, series y folios, parámetros (checklist, políticas), estado CFDI, bitácora de auditoría |
 
 El **modelo de datos completo de los 11 módulos** ya está en `backend/prisma/schema.prisma`.
 

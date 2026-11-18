@@ -689,3 +689,10 @@ model Contador {
   clave  String @id  // "ORDEN", "VENTA", "COMPRA", "PROYECTO"
   valor  Int    @default(0)
 }
+
+// Parametros configurables del sistema (clave -> JSON): checklist de recepcion,
+// formas de pago habilitadas, politicas de garantia/resguardo, etc.
+model Configuracion {
+  clave String @id
+  valor Json
+}

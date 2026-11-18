@@ -11,6 +11,27 @@ import { notificar } from '../../lib/notificaciones.js';
 export const ordenesRouter = Router();
 ordenesRouter.use(requireAuth);
 
+// Transiciones de estatus permitidas (maquina de estados de la orden).
+// No se puede retroceder; solo se permiten los pasos del flujo. La unica
+// "vuelta" valida es pruebas de calidad fallidas -> reparacion (del documento).
+const TRANSICIONES: Record<EstatusOrden, EstatusOrden[]> = {
+  RECIBIDO: ['EN_DIAGNOSTICO', 'CANCELADO'],
+  EN_DIAGNOSTICO: ['ESPERANDO_AUTORIZACION', 'EN_TRAMITE_GARANTIA_EPSON', 'LISTO_ENTREGA_SIN_REPARAR', 'CANCELADO'],
+  ESPERANDO_AUTORIZACION: ['EN_REPARACION', 'ESPERANDO_REFACCION', 'LISTO_ENTREGA_SIN_REPARAR', 'CANCELADO'],
+  EN_TRAMITE_GARANTIA_EPSON: ['ESPERANDO_REFACCION', 'EN_REPARACION', 'CANCELADO'],
+  ESPERANDO_REFACCION: ['EN_REPARACION', 'CANCELADO'],
+  EN_REPARACION: ['EN_PRUEBAS_CALIDAD', 'ESPERANDO_REFACCION', 'CANCELADO'],
+  EN_PRUEBAS_CALIDAD: ['LISTO_ENTREGA_REPARADO', 'EN_REPARACION', 'CANCELADO'],
+  LISTO_ENTREGA_REPARADO: ['ENTREGADO', 'ABANDONO'],
+  LISTO_ENTREGA_SIN_REPARAR: ['ENTREGADO', 'ABANDONO'],
+  ENTREGADO: [],
+  ABANDONO: ['ENTREGADO', 'CANCELADO'],
+  CANCELADO: [],
+};
+
+// Consultar las transiciones permitidas (para que el frontend muestre opciones validas).
+ordenesRouter.get('/transiciones', (_req, res) => res.json(TRANSICIONES));
+
 // Lista de tecnicos activos (para asignar en la orden). Accesible a recepcion.
 ordenesRouter.get('/tecnicos', async (_req, res, next) => {
   try {
@@ -118,6 +139,13 @@ ordenesRouter.post('/:id/estatus', async (req, res, next) => {
   try {
     const { estatus, nota, soloInterno } = cambioEstatusSchema.parse(req.body);
     const id = Number(req.params.id);
+    // Validar la transicion: no se puede retroceder ni saltar fuera del flujo.
+    const actual = await prisma.ordenTrabajo.findUnique({ where: { id }, select: { estatus: true } });
+    if (!actual) return res.status(404).json({ error: 'Orden no encontrada' });
+    if (actual.estatus === estatus) return res.status(400).json({ error: 'La orden ya está en ese estatus' });
+    if (!TRANSICIONES[actual.estatus].includes(estatus)) {
+      return res.status(400).json({ error: `No se puede cambiar de "${actual.estatus}" a "${estatus}". Transiciones permitidas: ${TRANSICIONES[actual.estatus].join(', ') || '(ninguna, estatus final)'}` });
+    }
     const orden = await prisma.ordenTrabajo.update({
       where: { id },
       data: {

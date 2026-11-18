@@ -31,6 +31,34 @@ async function destinoCliente(clienteId: number | null | undefined, canal: strin
   return contacto.whatsapp || contacto.telefono || null;
 }
 
+// Normaliza un numero a formato internacional (solo digitos). Si trae 10 digitos
+// se antepone el codigo de pais (WHATSAPP_COUNTRY_CODE, por defecto 52 Mexico).
+function normalizarNumero(raw: string): string {
+  let n = (raw || '').replace(/\D/g, '');
+  const cc = process.env.WHATSAPP_COUNTRY_CODE || '52';
+  if (n.length === 10) n = cc + n;
+  return n;
+}
+
+// Envia un mensaje de texto por la WhatsApp Cloud API (Meta). Requiere
+// WHATSAPP_TOKEN y WHATSAPP_PHONE_ID. Lanza error si la API responde != 2xx.
+async function enviarWhatsApp(destino: string, mensaje: string): Promise<void> {
+  const token = process.env.WHATSAPP_TOKEN;
+  const phoneId = process.env.WHATSAPP_PHONE_ID;
+  const version = process.env.WHATSAPP_API_VERSION || 'v21.0';
+  if (!token || !phoneId) throw new Error('WhatsApp no configurado');
+  const resp = await fetch(`https://graph.facebook.com/${version}/${phoneId}/messages`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ messaging_product: 'whatsapp', to: normalizarNumero(destino), type: 'text', text: { body: mensaje, preview_url: false } }),
+    signal: AbortSignal.timeout(12000),
+  });
+  if (!resp.ok) {
+    const detalle = await resp.text().catch(() => '');
+    throw new Error(`WhatsApp ${resp.status}: ${detalle.slice(0, 300)}`);
+  }
+}
+
 export interface EventoNotif {
   evento: 'recepcion' | 'autorizacion' | 'listo' | 'ticket' | 'factura';
   orden?: any;   // con cliente y equipo
@@ -57,10 +85,16 @@ export async function notificar(ev: EventoNotif) {
     });
 
     const destino = await destinoCliente(clienteId, canal);
-    const proveedorListo = canal === 'EMAIL' ? !!process.env.SMTP_URL : !!process.env.WHATSAPP_TOKEN;
 
-    // Aqui iria el envio real cuando el proveedor este configurado.
-    const estatus = !destino ? 'SIN_DESTINO' : (proveedorListo ? 'ENVIADA' : 'SIMULADA');
+    // Envio real: WhatsApp si esta configurado; correo pendiente (SMTP).
+    let estatus: 'SIMULADA' | 'ENVIADA' | 'SIN_DESTINO' | 'ERROR' = 'SIMULADA';
+    if (!destino) {
+      estatus = 'SIN_DESTINO';
+    } else if (canal === 'WHATSAPP' && process.env.WHATSAPP_TOKEN && process.env.WHATSAPP_PHONE_ID) {
+      try { await enviarWhatsApp(destino, mensaje); estatus = 'ENVIADA'; }
+      catch (err) { estatus = 'ERROR'; console.error('[notificaciones] WhatsApp falló:', (err as Error).message); }
+    }
+    // (si canal === 'EMAIL' y SMTP_URL, aqui iria el envio por correo)
 
     await prisma.notificacion.create({
       data: { evento: ev.evento, canal, destino: destino ?? undefined, mensaje, estatus, clienteId: clienteId ?? undefined, ordenId: orden?.id, ventaId: ev.venta?.id },

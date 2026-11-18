@@ -150,7 +150,9 @@ export default function Ordenes() {
 
 function Detalle({ orden, tecnicos, user, onBack, onReload }: { orden: any; tecnicos: any[]; user: any; onBack: () => void; onReload: () => void }) {
   const [msg, setMsg] = useState('');
-  const [estatus, setEstatus] = useState(orden.estatus);
+  const [transiciones, setTransiciones] = useState<Record<string, string[]>>({});
+  const permitidos = transiciones[orden.estatus] || [];
+  const [estatus, setEstatus] = useState('');
   const [nota, setNota] = useState('');
   const [asignar, setAsignar] = useState('');
   const [empresa, setEmpresa] = useState<any>(null);
@@ -162,6 +164,8 @@ function Detalle({ orden, tecnicos, user, onBack, onReload }: { orden: any; tecn
   });
 
   useEffect(() => { api.get('/config/empresa').then((r) => setEmpresa(r.data)).catch(() => {}); }, []);
+  useEffect(() => { api.get('/ordenes/transiciones').then((r) => setTransiciones(r.data)).catch(() => {}); }, []);
+  useEffect(() => { if (permitidos.length) setEstatus((prev) => permitidos.includes(prev) ? prev : permitidos[0]); /* eslint-disable-next-line */ }, [transiciones]);
   useEffect(() => { if (q.trim()) api.get('/catalogo/productos', { params: { q } }).then((r) => setProds(r.data)); else setProds([]); }, [q]);
 
   async function agregarRefaccion(productoId: number) {
@@ -240,11 +244,17 @@ function Detalle({ orden, tecnicos, user, onBack, onReload }: { orden: any; tecn
         {/* Cambiar estatus */}
         <div className="bg-white rounded-xl shadow p-4 text-sm space-y-2">
           <h2 className="font-semibold">Cambiar estatus</h2>
-          <select value={estatus} onChange={(e) => setEstatus(e.target.value)} className="w-full border rounded px-2 py-1">
-            {ESTATUS.map((s) => <option key={s} value={s}>{ESTATUS_LABEL[s]}</option>)}
-          </select>
-          <input className="w-full border rounded px-2 py-1" placeholder="Nota (opcional)" value={nota} onChange={(e) => setNota(e.target.value)} />
-          <button onClick={cambiarEstatus} className="bg-green-600 text-white rounded px-4 py-1">Actualizar estatus</button>
+          <div className="text-xs text-slate-500">Actual: <b>{ESTATUS_LABEL[orden.estatus] ?? orden.estatus}</b></div>
+          {permitidos.length === 0 ? (
+            <p className="text-slate-400">Estatus final: esta orden ya no admite cambios.</p>
+          ) : (<>
+            <select value={estatus} onChange={(e) => setEstatus(e.target.value)} className="w-full border rounded px-2 py-1">
+              {permitidos.map((s) => <option key={s} value={s}>{ESTATUS_LABEL[s] ?? s}</option>)}
+            </select>
+            <input className="w-full border rounded px-2 py-1" placeholder="Nota (opcional)" value={nota} onChange={(e) => setNota(e.target.value)} />
+            <button onClick={cambiarEstatus} className="bg-green-600 text-white rounded px-4 py-1">Actualizar estatus</button>
+            <p className="text-xs text-slate-400">Solo se muestran los siguientes pasos validos del flujo; no se puede regresar a un estatus anterior.</p>
+          </>)}
         </div>
 
         {/* Diagnostico y cotizacion */}

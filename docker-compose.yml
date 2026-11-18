@@ -1,0 +1,16 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: csa-epson-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: csa
+      POSTGRES_PASSWORD: csa_password
+      POSTGRES_DB: csa_epson
+    ports:
+      - "5432:5432"
+    volumes:
+      - csa_pgdata:/var/lib/postgresql/data
+
+volumes:
+  csa_pgdata:

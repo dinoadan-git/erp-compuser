@@ -1,0 +1,629 @@
+// ===========================================================================
+// CSA EPSON ERP - Esquema de base de datos (PostgreSQL / Prisma)
+// Cubre los 11 modulos del documento de definicion.
+// Nota: montos en Decimal(14,2); CFDI y pagos en linea se integran por fuera.
+// ===========================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// ENUMS
+// ---------------------------------------------------------------------------
+
+enum RolUsuario {
+  ADMINISTRADOR
+  RECEPCION
+  TECNICO
+  CAJERO
+  COMPRAS_ALMACEN
+}
+
+enum TipoCliente {
+  MOSTRADOR
+  EMPRESA
+  GARANTIA_EPSON
+}
+
+enum PersonaFiscal {
+  FISICA
+  MORAL
+}
+
+enum TipoArticulo {
+  CONSUMIBLE
+  REFACCION
+  EQUIPO_COMPUTO
+  SERVICIO
+}
+
+enum TipoListaPrecio {
+  PUBLICO
+  EMPRESA
+  MAYOREO
+}
+
+enum TipoMovInventario {
+  ENTRADA
+  SALIDA
+  AJUSTE
+  APARTADO
+  LIBERACION_APARTADO
+}
+
+enum EstatusOrdenCompra {
+  BORRADOR
+  ENVIADA
+  PARCIAL
+  RECIBIDA
+  CANCELADA
+}
+
+enum FormaPago {
+  EFECTIVO
+  TARJETA
+  TRANSFERENCIA
+  CREDITO
+  MIXTO
+}
+
+enum TipoVenta {
+  TICKET
+  FACTURA
+  COTIZACION
+  APARTADO
+}
+
+// Catalogo de estatus de la orden de trabajo (12 estados del documento)
+enum EstatusOrden {
+  RECIBIDO
+  EN_DIAGNOSTICO
+  ESPERANDO_AUTORIZACION
+  EN_TRAMITE_GARANTIA_EPSON
+  ESPERANDO_REFACCION
+  EN_REPARACION
+  EN_PRUEBAS_CALIDAD
+  LISTO_ENTREGA_REPARADO
+  LISTO_ENTREGA_SIN_REPARAR
+  ENTREGADO
+  ABANDONO
+  CANCELADO
+}
+
+enum TipoGarantia {
+  NINGUNA
+  EPSON
+  TALLER
+}
+
+enum EstatusProyecto {
+  COTIZACION
+  EN_CURSO
+  PAUSADO
+  CERRADO
+  CANCELADO
+}
+
+enum CentroCosto {
+  TALLER
+  MOSTRADOR
+  PROYECTOS
+}
+
+// ---------------------------------------------------------------------------
+// CONFIGURACION Y SEGURIDAD (modulo 3.11)
+// ---------------------------------------------------------------------------
+
+model Empresa {
+  id              Int      @id @default(autoincrement())
+  nombre          String
+  rfc             String?
+  regimenFiscal   String?
+  cpFiscal        String?
+  logoUrl         String?
+  direccion       String?
+  telefono        String?
+  email           String?
+  // Politicas configurables
+  diasAbandono    Int      @default(90)
+  creadoEn        DateTime @default(now())
+  actualizadoEn   DateTime @updatedAt
+}
+
+model Usuario {
+  id            Int          @id @default(autoincrement())
+  nombre        String
+  email         String       @unique
+  passwordHash  String
+  pinHash       String?      // PIN de 4 digitos por colaborador
+  activo        Boolean      @default(true)
+  roles         RolUsuario[] // una persona puede tener varios roles
+  creadoEn      DateTime     @default(now())
+  actualizadoEn DateTime     @updatedAt
+
+  ordenesAsignadas OrdenTrabajo[]  @relation("TecnicoOrden")
+  bitacoras        BitacoraOrden[]
+  movimientos      MovimientoInventario[]
+  ventas           Venta[]
+  cortes           CorteCaja[]
+  auditorias       Auditoria[]
+}
+
+model Auditoria {
+  id         Int      @id @default(autoincrement())
+  usuarioId  Int?
+  usuario    Usuario? @relation(fields: [usuarioId], references: [id])
+  accion     String
+  entidad    String
+  entidadId  String?
+  detalle    Json?
+  creadoEn   DateTime @default(now())
+
+  @@index([entidad, entidadId])
+}
+
+// Plantillas de mensajes (WhatsApp / correo)
+model PlantillaMensaje {
+  id       Int    @id @default(autoincrement())
+  clave    String @unique   // ej. "estatus.recibido"
+  canal    String           // WHATSAPP | EMAIL
+  asunto   String?
+  cuerpo   String
+  activo   Boolean @default(true)
+}
+
+// ---------------------------------------------------------------------------
+// CLIENTES / CRM (modulo 3.1)
+// ---------------------------------------------------------------------------
+
+model Cliente {
+  id            Int           @id @default(autoincrement())
+  tipo          TipoCliente   @default(MOSTRADOR)
+  personaFiscal PersonaFiscal @default(FISICA)
+  nombre        String
+  rfc           String?
+  regimenFiscal String?
+  usoCfdi       String?
+  cpFiscal      String?
+  // Credito
+  creditoAutorizado Decimal   @default(0) @db.Decimal(14, 2)
+  saldo             Decimal   @default(0) @db.Decimal(14, 2)
+  notas         String?
+  creadoEn      DateTime      @default(now())
+  actualizadoEn DateTime      @updatedAt
+
+  contactos     ContactoCliente[]
+  direcciones   DireccionCliente[]
+  equipos       Equipo[]
+  ordenes       OrdenTrabajo[]
+  ventas        Venta[]
+  proyectos     Proyecto[]
+
+  @@index([nombre])
+  @@index([rfc])
+}
+
+model ContactoCliente {
+  id        Int     @id @default(autoincrement())
+  clienteId Int
+  cliente   Cliente @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  nombre    String
+  telefono  String?
+  email     String?
+  whatsapp  String?
+  puesto    String?
+  principal Boolean @default(false)
+}
+
+model DireccionCliente {
+  id         Int     @id @default(autoincrement())
+  clienteId  Int
+  cliente    Cliente @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  etiqueta   String?  // "Fiscal", "Envio", etc.
+  calle      String?
+  numero     String?
+  colonia    String?
+  cp         String?
+  ciudad     String?
+  estado     String?
+  referencias String?
+}
+
+// ---------------------------------------------------------------------------
+// EQUIPOS DEL CLIENTE (usados por Ordenes de trabajo)
+// ---------------------------------------------------------------------------
+
+model Equipo {
+  id            Int      @id @default(autoincrement())
+  clienteId     Int
+  cliente       Cliente  @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  tipo          String   // Impresora, Laptop, Multifuncional, etc.
+  marca         String?
+  modelo        String?
+  numeroSerie   String?
+  accesorios    String?
+  creadoEn      DateTime @default(now())
+
+  ordenes       OrdenTrabajo[]
+
+  @@index([numeroSerie])
+}
+
+// ---------------------------------------------------------------------------
+// CATALOGO: PRODUCTOS Y SERVICIOS (modulo 3.2)
+// ---------------------------------------------------------------------------
+
+model Categoria {
+  id        Int       @id @default(autoincrement())
+  nombre    String    @unique
+  productos Producto[]
+}
+
+model Marca {
+  id        Int       @id @default(autoincrement())
+  nombre    String    @unique
+  productos Producto[]
+}
+
+model Producto {
+  id            Int          @id @default(autoincrement())
+  tipo          TipoArticulo
+  sku           String?      @unique
+  codigoBarras  String?      @unique
+  nombre        String
+  descripcion   String?
+  categoriaId   Int?
+  categoria     Categoria?   @relation(fields: [categoriaId], references: [id])
+  marcaId       Int?
+  marca         Marca?       @relation(fields: [marcaId], references: [id])
+  // SAT / impuestos
+  claveProdServSat String?
+  claveUnidadSat   String?
+  tasaIva          Decimal   @default(16) @db.Decimal(5, 2)
+  // costeo
+  costoPromedio Decimal      @default(0) @db.Decimal(14, 4)
+  // inventariable?
+  controlStock  Boolean      @default(true)
+  controlSerie  Boolean      @default(false)
+  controlLote   Boolean      @default(false)
+  // tienda en linea
+  fotoUrl       String?
+  publicarEnTienda Boolean   @default(false)
+  activo        Boolean      @default(true)
+  creadoEn      DateTime     @default(now())
+  actualizadoEn DateTime     @updatedAt
+
+  precios       PrecioProducto[]
+  existencia    Existencia?
+  movimientos   MovimientoInventario[]
+  compatibilidades CompatibilidadRefaccion[] @relation("RefaccionCompat")
+  detalleCompra DetalleCompra[]
+  detalleVenta  DetalleVenta[]
+  consumos      ConsumoRefaccion[]
+
+  @@index([nombre])
+}
+
+model PrecioProducto {
+  id         Int             @id @default(autoincrement())
+  productoId Int
+  producto   Producto        @relation(fields: [productoId], references: [id], onDelete: Cascade)
+  lista      TipoListaPrecio
+  precio     Decimal         @db.Decimal(14, 2)
+
+  @@unique([productoId, lista])
+}
+
+// Compatibilidad de refacciones/consumibles con modelos de equipo
+model CompatibilidadRefaccion {
+  id          Int      @id @default(autoincrement())
+  refaccionId Int
+  refaccion   Producto @relation("RefaccionCompat", fields: [refaccionId], references: [id], onDelete: Cascade)
+  marca       String
+  modelo      String
+
+  @@index([marca, modelo])
+}
+
+// ---------------------------------------------------------------------------
+// INVENTARIO (modulo 3.3) - almacen unico
+// ---------------------------------------------------------------------------
+
+model Existencia {
+  id          Int      @id @default(autoincrement())
+  productoId  Int      @unique
+  producto    Producto @relation(fields: [productoId], references: [id], onDelete: Cascade)
+  disponible  Decimal  @default(0) @db.Decimal(14, 3)
+  apartado    Decimal  @default(0) @db.Decimal(14, 3)
+  minimo      Decimal  @default(0) @db.Decimal(14, 3)
+  maximo      Decimal  @default(0) @db.Decimal(14, 3)
+  actualizadoEn DateTime @updatedAt
+}
+
+model MovimientoInventario {
+  id         Int               @id @default(autoincrement())
+  productoId Int
+  producto   Producto          @relation(fields: [productoId], references: [id])
+  tipo       TipoMovInventario
+  cantidad   Decimal           @db.Decimal(14, 3)
+  costoUnit  Decimal?          @db.Decimal(14, 4)
+  motivo     String?
+  // referencia opcional al documento origen
+  refTipo    String?           // "COMPRA" | "VENTA" | "ORDEN" | "AJUSTE" | "CONTEO"
+  refId      String?
+  serie      String?
+  lote       String?
+  usuarioId  Int?
+  usuario    Usuario?          @relation(fields: [usuarioId], references: [id])
+  creadoEn   DateTime          @default(now())
+
+  @@index([productoId, creadoEn])
+  @@index([refTipo, refId])
+}
+
+// ---------------------------------------------------------------------------
+// COMPRAS (modulo 3.4)
+// ---------------------------------------------------------------------------
+
+model Proveedor {
+  id        Int     @id @default(autoincrement())
+  nombre    String
+  rfc       String?
+  esEpson   Boolean @default(false)
+  telefono  String?
+  email     String?
+  direccion String?
+  saldo     Decimal @default(0) @db.Decimal(14, 2)
+  creadoEn  DateTime @default(now())
+
+  ordenesCompra OrdenCompra[]
+}
+
+model OrdenCompra {
+  id          Int               @id @default(autoincrement())
+  folio       String            @unique
+  proveedorId Int
+  proveedor   Proveedor         @relation(fields: [proveedorId], references: [id])
+  estatus     EstatusOrdenCompra @default(BORRADOR)
+  xmlProveedor String?
+  subtotal    Decimal           @default(0) @db.Decimal(14, 2)
+  impuestos   Decimal           @default(0) @db.Decimal(14, 2)
+  total       Decimal           @default(0) @db.Decimal(14, 2)
+  creadoEn    DateTime          @default(now())
+  actualizadoEn DateTime        @updatedAt
+
+  detalles    DetalleCompra[]
+  pagos       PagoProveedor[]
+}
+
+model DetalleCompra {
+  id            Int         @id @default(autoincrement())
+  ordenCompraId Int
+  ordenCompra   OrdenCompra @relation(fields: [ordenCompraId], references: [id], onDelete: Cascade)
+  productoId    Int
+  producto      Producto    @relation(fields: [productoId], references: [id])
+  cantidad      Decimal     @db.Decimal(14, 3)
+  cantidadRecibida Decimal  @default(0) @db.Decimal(14, 3)
+  costoUnit     Decimal     @db.Decimal(14, 4)
+}
+
+model PagoProveedor {
+  id            Int         @id @default(autoincrement())
+  ordenCompraId Int
+  ordenCompra   OrdenCompra @relation(fields: [ordenCompraId], references: [id])
+  monto         Decimal     @db.Decimal(14, 2)
+  forma         FormaPago
+  fecha         DateTime    @default(now())
+}
+
+// ---------------------------------------------------------------------------
+// VENTAS DE MOSTRADOR / POS (modulo 3.5)
+// ---------------------------------------------------------------------------
+
+model Venta {
+  id         Int        @id @default(autoincrement())
+  folio      String     @unique
+  tipo       TipoVenta  @default(TICKET)
+  clienteId  Int?
+  cliente    Cliente?   @relation(fields: [clienteId], references: [id])
+  cajeroId   Int?
+  cajero     Usuario?   @relation(fields: [cajeroId], references: [id])
+  corteCajaId Int?
+  corteCaja  CorteCaja? @relation(fields: [corteCajaId], references: [id])
+  // enlace opcional al cobro de una orden de trabajo
+  ordenTrabajoId Int?   @unique
+  ordenTrabajo   OrdenTrabajo? @relation(fields: [ordenTrabajoId], references: [id])
+  subtotal   Decimal    @default(0) @db.Decimal(14, 2)
+  impuestos  Decimal    @default(0) @db.Decimal(14, 2)
+  total      Decimal    @default(0) @db.Decimal(14, 2)
+  cfdiUuid   String?    // folio fiscal una vez timbrado por el PAC
+  creadoEn   DateTime   @default(now())
+
+  detalles   DetalleVenta[]
+  pagos      PagoVenta[]
+
+  @@index([creadoEn])
+}
+
+model DetalleVenta {
+  id         Int      @id @default(autoincrement())
+  ventaId    Int
+  venta      Venta    @relation(fields: [ventaId], references: [id], onDelete: Cascade)
+  productoId Int
+  producto   Producto @relation(fields: [productoId], references: [id])
+  descripcion String
+  cantidad   Decimal  @db.Decimal(14, 3)
+  precioUnit Decimal  @db.Decimal(14, 2)
+  descuento  Decimal  @default(0) @db.Decimal(14, 2)
+  tasaIva    Decimal  @default(16) @db.Decimal(5, 2)
+  importe    Decimal  @db.Decimal(14, 2)
+}
+
+model PagoVenta {
+  id       Int       @id @default(autoincrement())
+  ventaId  Int
+  venta    Venta     @relation(fields: [ventaId], references: [id], onDelete: Cascade)
+  monto    Decimal   @db.Decimal(14, 2)
+  forma    FormaPago
+  refPago  String?   // ultimos 4, autorizacion, etc.
+  fecha    DateTime  @default(now())
+}
+
+model CorteCaja {
+  id            Int      @id @default(autoincrement())
+  usuarioId     Int
+  usuario       Usuario  @relation(fields: [usuarioId], references: [id])
+  fondoApertura Decimal  @default(0) @db.Decimal(14, 2)
+  totalEfectivo Decimal  @default(0) @db.Decimal(14, 2)
+  totalTarjeta  Decimal  @default(0) @db.Decimal(14, 2)
+  retiros       Decimal  @default(0) @db.Decimal(14, 2)
+  arqueo        Decimal?  @db.Decimal(14, 2)
+  diferencia    Decimal?  @db.Decimal(14, 2)
+  abiertoEn     DateTime @default(now())
+  cerradoEn     DateTime?
+
+  ventas        Venta[]
+}
+
+// ---------------------------------------------------------------------------
+// ORDENES DE TRABAJO (modulo 3.6) - NUCLEO
+// ---------------------------------------------------------------------------
+
+model OrdenTrabajo {
+  id            Int          @id @default(autoincrement())
+  folio         String       @unique  // consecutivo por equipo
+  clienteId     Int
+  cliente       Cliente      @relation(fields: [clienteId], references: [id])
+  equipoId      Int
+  equipo        Equipo       @relation(fields: [equipoId], references: [id])
+  tecnicoId     Int?
+  tecnico       Usuario?     @relation("TecnicoOrden", fields: [tecnicoId], references: [id])
+
+  estatus       EstatusOrden @default(RECIBIDO)
+  tipoGarantia  TipoGarantia @default(NINGUNA)
+
+  // recepcion / checklist
+  fallaReportada String
+  estadoFisico   String?
+  accesorios     String?
+  fotos          Json?       // urls
+  qrToken        String      @unique  // para portal publico y etiqueta QR
+
+  // diagnostico / cotizacion
+  diagnostico    String?
+  costoDiagnostico Decimal   @default(0) @db.Decimal(14, 2)
+  cotizacionTotal  Decimal   @default(0) @db.Decimal(14, 2)
+  autorizadaEn   DateTime?
+  autorizadaPor  String?     // mostrador / whatsapp / correo / enlinea
+
+  // SLA
+  recibidaEn     DateTime    @default(now())
+  prometidaEn    DateTime?
+  entregadaEn    DateTime?
+  firmaEntregaUrl String?
+
+  actualizadoEn  DateTime    @updatedAt
+
+  bitacora       BitacoraOrden[]
+  consumos       ConsumoRefaccion[]
+  venta          Venta?
+
+  @@index([estatus])
+  @@index([clienteId])
+}
+
+model BitacoraOrden {
+  id          Int          @id @default(autoincrement())
+  ordenId     Int
+  orden       OrdenTrabajo @relation(fields: [ordenId], references: [id], onDelete: Cascade)
+  estatus     EstatusOrden
+  nota        String?
+  // estados detallados del tecnico solo visibles para Gerente/Admin
+  soloInterno Boolean      @default(false)
+  usuarioId   Int?
+  usuario     Usuario?     @relation(fields: [usuarioId], references: [id])
+  creadoEn    DateTime     @default(now())
+
+  @@index([ordenId, creadoEn])
+}
+
+model ConsumoRefaccion {
+  id         Int          @id @default(autoincrement())
+  ordenId    Int
+  orden      OrdenTrabajo @relation(fields: [ordenId], references: [id], onDelete: Cascade)
+  productoId Int
+  producto   Producto     @relation(fields: [productoId], references: [id])
+  cantidad   Decimal      @db.Decimal(14, 3)
+  costoUnit  Decimal      @db.Decimal(14, 4)
+  precioUnit Decimal      @db.Decimal(14, 2)
+}
+
+// ---------------------------------------------------------------------------
+// PROYECTOS Y SERVICIOS ESPECIALES (modulo 3.7)
+// ---------------------------------------------------------------------------
+
+model Proyecto {
+  id          Int             @id @default(autoincrement())
+  folio       String          @unique
+  clienteId   Int
+  cliente     Cliente         @relation(fields: [clienteId], references: [id])
+  nombre      String
+  descripcion String?
+  estatus     EstatusProyecto @default(COTIZACION)
+  alcance     String?
+  total       Decimal         @default(0) @db.Decimal(14, 2)
+  creadoEn    DateTime        @default(now())
+  actualizadoEn DateTime      @updatedAt
+
+  etapas      EtapaProyecto[]
+  visitas     VisitaProyecto[]
+}
+
+model EtapaProyecto {
+  id          Int      @id @default(autoincrement())
+  proyectoId  Int
+  proyecto    Proyecto @relation(fields: [proyectoId], references: [id], onDelete: Cascade)
+  nombre      String
+  responsable String?
+  avance      Int      @default(0) // 0-100
+  horas       Decimal  @default(0) @db.Decimal(10, 2)
+}
+
+model VisitaProyecto {
+  id         Int      @id @default(autoincrement())
+  proyectoId Int
+  proyecto   Proyecto @relation(fields: [proyectoId], references: [id], onDelete: Cascade)
+  fecha      DateTime
+  nota       String?
+}
+
+// ---------------------------------------------------------------------------
+// GASTOS (modulo 3.9)
+// ---------------------------------------------------------------------------
+
+model Gasto {
+  id          Int         @id @default(autoincrement())
+  categoria   String      // renta, luz, nomina, viaticos, otros
+  centroCosto CentroCosto @default(TALLER)
+  descripcion String
+  monto       Decimal     @db.Decimal(14, 2)
+  comprobanteUrl String?
+  xmlUrl      String?
+  esCajaChica Boolean     @default(false)
+  fecha       DateTime    @default(now())
+}
+
+// ---------------------------------------------------------------------------
+// FOLIOS / CONSECUTIVOS
+// ---------------------------------------------------------------------------
+
+model Contador {
+  clave  String @id  // "ORDEN", "VENTA", "COMPRA", "PROYECTO"
+  valor  Int    @default(0)
+}

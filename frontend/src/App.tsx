@@ -10,6 +10,7 @@ import Ventas from './pages/Ventas';
 import Inventario from './pages/Inventario';
 import Compras from './pages/Compras';
 import Reportes from './pages/Reportes';
+import Gastos from './pages/Gastos';
 import Placeholder from './pages/Placeholder';
 
 function Protected({ children }: { children: JSX.Element }) {
@@ -31,7 +32,7 @@ export default function App() {
         <Route path="/compras" element={<Compras />} />
         <Route path="/ventas" element={<Ventas />} />
         <Route path="/proyectos" element={<Placeholder titulo="Proyectos" />} />
-        <Route path="/gastos" element={<Placeholder titulo="Gastos" />} />
+        <Route path="/gastos" element={<Gastos />} />
         <Route path="/reportes" element={<Reportes />} />
         <Route path="/config" element={<Placeholder titulo="Configuracion" />} />
       </Route>

@@ -625,6 +625,20 @@ model Gasto {
   fecha       DateTime    @default(now())
 }
 
+// Caja chica (fondo fijo con reposiciones)
+model CajaChica {
+  id    Int     @id @default(1)
+  fondo Decimal @default(0) @db.Decimal(14, 2)
+  saldo Decimal @default(0) @db.Decimal(14, 2)
+}
+
+model ReposicionCajaChica {
+  id    Int      @id @default(autoincrement())
+  monto Decimal  @db.Decimal(14, 2)
+  nota  String?
+  fecha DateTime @default(now())
+}
+
 // ---------------------------------------------------------------------------
 // FOLIOS / CONSECUTIVOS
 // ---------------------------------------------------------------------------

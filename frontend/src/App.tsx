@@ -11,6 +11,7 @@ import Inventario from './pages/Inventario';
 import Compras from './pages/Compras';
 import Reportes from './pages/Reportes';
 import Gastos from './pages/Gastos';
+import Catalogo from './pages/Catalogo';
 import Placeholder from './pages/Placeholder';
 
 function Protected({ children }: { children: JSX.Element }) {
@@ -27,7 +28,7 @@ export default function App() {
         <Route path="/" element={<Dashboard />} />
         <Route path="/clientes" element={<Clientes />} />
         <Route path="/ordenes" element={<Ordenes />} />
-        <Route path="/catalogo" element={<Placeholder titulo="Productos y servicios" />} />
+        <Route path="/catalogo" element={<Catalogo />} />
         <Route path="/inventario" element={<Inventario />} />
         <Route path="/compras" element={<Compras />} />
         <Route path="/ventas" element={<Ventas />} />

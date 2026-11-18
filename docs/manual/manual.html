@@ -1,0 +1,268 @@
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>Manual CSA EPSON</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap">
+<style>
+  /* Layout: manual de una columna con índice fijo lateral en pantallas anchas */
+  :root{
+    --bg:#f4f6f8; --surface:#ffffff; --fg:#1b2330; --muted:#5b6676;
+    --line:#e2e7ee; --accent:#0284c7; --accent-soft:#e0f2fe; --accent-ink:#075985;
+    --warn-bg:#fef3c7; --warn-ink:#92400e; --ok:#10b981;
+    --sans:'Inter',system-ui,sans-serif; --head:'Space Grotesk','Inter',sans-serif;
+    color-scheme:light;
+  }
+  @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+    --bg:#0f141b; --surface:#171e27; --fg:#e7edf4; --muted:#9aa7b6;
+    --line:#2a333f; --accent:#38bdf8; --accent-soft:#0c2a3a; --accent-ink:#bae6fd;
+    --warn-bg:#3b2f11; --warn-ink:#fcd77f; color-scheme:dark;
+  }}
+  :root[data-theme="dark"]{
+    --bg:#0f141b; --surface:#171e27; --fg:#e7edf4; --muted:#9aa7b6;
+    --line:#2a333f; --accent:#38bdf8; --accent-soft:#0c2a3a; --accent-ink:#bae6fd;
+    --warn-bg:#3b2f11; --warn-ink:#fcd77f; color-scheme:dark;
+  }
+  *{box-sizing:border-box}
+  body{background:var(--bg);color:var(--fg);font-family:var(--sans);line-height:1.6;margin:0}
+  .wrap{max-width:1180px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:0}
+  header.top{padding-block:40px 24px}
+  .eyebrow{font-family:var(--head);letter-spacing:.14em;text-transform:uppercase;font-size:.72rem;color:var(--accent);font-weight:600}
+  h1{font-family:var(--head);font-size:clamp(1.9rem,4vw,2.7rem);margin:.2em 0 .1em;text-wrap:balance;letter-spacing:-.01em}
+  .sub{color:var(--muted);max-width:60ch;font-size:1.02rem}
+  .layout{display:grid;grid-template-columns:230px 1fr;gap:40px;align-items:start;padding-bottom:64px}
+  nav.toc{position:sticky;top:16px;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px;font-size:.9rem}
+  nav.toc strong{font-family:var(--head);font-size:.74rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);display:block;margin:0 0 8px 6px}
+  nav.toc a{display:block;color:var(--fg);text-decoration:none;padding:6px 8px;border-radius:8px}
+  nav.toc a:hover{background:var(--accent-soft);color:var(--accent-ink)}
+  main{min-width:0}
+  section{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:22px 24px;margin-bottom:22px;scroll-margin-top:16px}
+  section h2{font-family:var(--head);font-size:1.35rem;margin:.1em 0 .3em;display:flex;align-items:center;gap:10px}
+  .tag{font-size:.68rem;font-weight:600;font-family:var(--head);letter-spacing:.05em;text-transform:uppercase;color:var(--accent-ink);background:var(--accent-soft);padding:3px 9px;border-radius:999px}
+  .purpose{color:var(--muted);margin:.2em 0 1em}
+  figure{margin:0 0 16px;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--bg)}
+  figure img{display:block;width:100%;height:auto}
+  figcaption{font-size:.8rem;color:var(--muted);padding:8px 12px;border-top:1px solid var(--line)}
+  h3{font-size:.95rem;font-family:var(--head);margin:1.1em 0 .4em;letter-spacing:.02em}
+  ol,ul{margin:.3em 0 .6em;padding-left:1.3em}
+  li{margin:.28em 0}
+  .callout{display:flex;gap:10px;background:var(--warn-bg);color:var(--warn-ink);border-radius:10px;padding:11px 14px;font-size:.9rem;margin:1em 0}
+  .callout b{font-weight:700}
+  code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;background:var(--accent-soft);color:var(--accent-ink);padding:.12em .45em;border-radius:6px;font-size:.88em}
+  table{border-collapse:collapse;width:100%;font-size:.9rem;margin:.4em 0}
+  th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{font-family:var(--head);font-size:.75rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+  .flow{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:.6em 0}
+  .flow span{background:var(--accent-soft);color:var(--accent-ink);border-radius:8px;padding:5px 9px;font-size:.8rem;font-weight:500}
+  .flow i{color:var(--muted);font-style:normal}
+  footer{color:var(--muted);font-size:.85rem;padding:24px 0 48px;border-top:1px solid var(--line)}
+  @media (max-width:820px){.layout{grid-template-columns:1fr;gap:20px}nav.toc{position:static;columns:2;column-gap:10px}}
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div class="eyebrow">Centro de Servicio Autorizado EPSON</div>
+    <h1>Manual de usuario</h1>
+    <p class="sub">Guía básica del sistema de administración COMPUSER: cómo entrar y cómo usar cada módulo, con pantallas reales. Pensada para recepción, técnicos, cajeros, compras y administración.</p>
+  </header>
+
+  <div class="layout">
+    <nav class="toc" aria-label="Índice">
+      <strong>Contenido</strong>
+      <a href="#acceso">1. Acceso</a>
+      <a href="#menu">2. El menú</a>
+      <a href="#panel">3. Panel</a>
+      <a href="#clientes">4. Clientes</a>
+      <a href="#ordenes">5. Órdenes de trabajo</a>
+      <a href="#ventas">6. Ventas (POS)</a>
+      <a href="#inventario">7. Inventario</a>
+      <a href="#compras">8. Compras</a>
+      <a href="#catalogo">9. Productos y servicios</a>
+      <a href="#gastos">10. Gastos</a>
+      <a href="#reportes">11. Reportes</a>
+      <a href="#proyectos">12. Proyectos</a>
+      <a href="#config">13. Configuración</a>
+      <a href="#portal">14. Portal del cliente</a>
+      <a href="#roles">15. Roles</a>
+    </nav>
+
+    <main>
+      <section id="acceso">
+        <h2>1. Acceso al sistema</h2>
+        <p class="purpose">Cómo entrar al sistema con tu usuario y contraseña.</p>
+        <figure><img src="img/login.png" alt="Pantalla de inicio de sesión" loading="lazy"><figcaption>Pantalla de inicio de sesión.</figcaption></figure>
+        <ol>
+          <li>Abre el navegador y entra a la dirección del sistema (por ejemplo <code>http://64.177.83.100:8080</code>).</li>
+          <li>Escribe tu <b>correo/usuario</b> y tu <b>contraseña</b>.</li>
+          <li>Haz clic en <b>Ingresar</b>. Entrarás al Panel.</li>
+        </ol>
+        <div class="callout"><span>⚠️</span><div><b>Primera vez:</b> el sistema trae usuarios de ejemplo (admin, recepción, técnico, cajero, compras) con contraseñas conocidas. El administrador debe <b>cambiarlas de inmediato</b> en Configuración → Usuarios.</div></div>
+      </section>
+
+      <section id="menu">
+        <h2>2. El menú de la izquierda</h2>
+        <p class="purpose">Todo el sistema se navega desde la barra oscura de la izquierda. Cada opción es un módulo. Abajo aparece tu nombre y el botón <b>Cerrar sesión</b>.</p>
+        <p>Lo que ves en el menú depende de tu <b>rol</b>: un técnico y un cajero no necesitan lo mismo. (Ver sección 15.)</p>
+      </section>
+
+      <section id="panel">
+        <h2>3. Panel <span class="tag">Inicio</span></h2>
+        <p class="purpose">Un vistazo rápido del taller: cuántas órdenes están activas, en reparación, entregadas o esperando autorización.</p>
+        <figure><img src="img/dashboard.png" alt="Panel con indicadores" loading="lazy"><figcaption>Panel de inicio con los indicadores del día.</figcaption></figure>
+        <p>Es la pantalla que aparece al entrar. No se captura nada aquí: solo informa. Para ver números financieros detallados usa <b>Reportes</b>.</p>
+      </section>
+
+      <section id="clientes">
+        <h2>4. Clientes</h2>
+        <p class="purpose">Registro de clientes (personas y empresas) y sus datos fiscales.</p>
+        <figure><img src="img/clientes.png" alt="Listado de clientes" loading="lazy"><figcaption>Listado y búsqueda de clientes.</figcaption></figure>
+        <h3>Buscar un cliente</h3>
+        <ol><li>Entra a <b>Clientes</b>.</li><li>Escribe el nombre o RFC en el buscador; la lista se filtra sola.</li></ol>
+        <h3>Datos que se guardan</h3>
+        <p>Nombre, tipo (mostrador, empresa o garantía EPSON), RFC y régimen fiscal, contactos, direcciones, y su saldo de crédito. Cada cliente guarda el historial de sus equipos y órdenes.</p>
+      </section>
+
+      <section id="ordenes">
+        <h2>5. Órdenes de trabajo <span class="tag">Núcleo</span></h2>
+        <p class="purpose">El corazón del taller: cada equipo que entra a reparación genera una orden con folio, y se le da seguimiento hasta la entrega.</p>
+        <figure><img src="img/ordenes.png" alt="Listado de órdenes de trabajo" loading="lazy"><figcaption>Órdenes de trabajo con su folio, equipo, técnico y estatus.</figcaption></figure>
+        <h3>Recibir un equipo (crear la orden)</h3>
+        <ol>
+          <li>Entra a <b>Órdenes de trabajo</b> y crea una nueva.</li>
+          <li>Elige el <b>cliente</b> y su <b>equipo</b> (tipo, marca, modelo, número de serie). Si el equipo ya existe, se carga solo.</li>
+          <li>Describe la <b>falla reportada</b> y el estado físico; asigna un <b>técnico</b>.</li>
+          <li>Al guardar, el sistema genera el <b>folio</b> (ej. <code>OT-000001</code>) y un código QR para el comprobante del cliente.</li>
+        </ol>
+        <h3>El flujo de estatus</h3>
+        <div class="flow">
+          <span>Recibido</span><i>→</i><span>En diagnóstico</span><i>→</i><span>Esperando autorización</span><i>→</i><span>En reparación</span><i>→</i><span>En pruebas</span><i>→</i><span>Listo</span><i>→</i><span>Entregado</span>
+        </div>
+        <p>Cada cambio de estatus queda en la <b>bitácora</b> con fecha, hora y usuario. Los estatus marcados en el sistema envían <b>aviso al cliente</b>. También existen <b>Esperando refacción</b>, <b>Trámite de garantía EPSON</b>, <b>Abandono</b> y <b>Cancelado</b>.</p>
+      </section>
+
+      <section id="ventas">
+        <h2>6. Ventas (POS)</h2>
+        <p class="purpose">Punto de venta de mostrador: vender productos, cobrar órdenes y hacer el corte de caja.</p>
+        <figure><img src="img/ventas.png" alt="Punto de venta" loading="lazy"><figcaption>Pantalla de ventas con caja, búsqueda de productos y carrito.</figcaption></figure>
+        <h3>Hacer una venta</h3>
+        <ol>
+          <li><b>Abre la caja</b> con el fondo inicial (solo una vez por turno).</li>
+          <li>Busca el producto por nombre, SKU o código de barras y pulsa <b>Agregar</b>.</li>
+          <li>Ajusta cantidades; el total con IVA se calcula solo.</li>
+          <li>Elige la <b>forma de pago</b> (efectivo, tarjeta, transferencia, crédito) y pulsa <b>Cobrar</b>.</li>
+        </ol>
+        <p>La venta <b>descuenta el inventario</b> automáticamente. Al terminar el turno, cierra la caja con el <b>arqueo</b>: el sistema calcula el efectivo esperado y la diferencia. También puedes hacer <b>devoluciones</b> (notas de crédito) y <b>cobrar órdenes de trabajo</b> terminadas.</p>
+      </section>
+
+      <section id="inventario">
+        <h2>7. Inventario</h2>
+        <p class="purpose">Existencias del almacén, con costo promedio, mínimos y alertas de reorden.</p>
+        <figure><img src="img/inventario.png" alt="Inventario" loading="lazy"><figcaption>Existencias, con alertas de reorden y acceso al kardex.</figcaption></figure>
+        <h3>Tareas comunes</h3>
+        <ul>
+          <li><b>Entrada</b>: registra mercancía que llega con su costo (actualiza el costo promedio).</li>
+          <li><b>Ajuste</b>: corrige la existencia a la cantidad física real, con un motivo.</li>
+          <li><b>Kardex</b>: ver todos los movimientos de un producto con su saldo.</li>
+        </ul>
+        <p>Los productos por debajo de su mínimo se resaltan y aparecen en <b>Alertas de reorden</b>, con la cantidad sugerida a comprar.</p>
+      </section>
+
+      <section id="compras">
+        <h2>8. Compras</h2>
+        <p class="purpose">Proveedores, órdenes de compra, recepción de mercancía y cuentas por pagar.</p>
+        <figure><img src="img/compras.png" alt="Compras" loading="lazy"><figcaption>Nueva orden de compra, proveedores y requisiciones sugeridas.</figcaption></figure>
+        <h3>Comprar y recibir</h3>
+        <ol>
+          <li>Da de alta el <b>proveedor</b> (incluye EPSON).</li>
+          <li>Crea una <b>orden de compra</b>: elige proveedor, agrega productos con cantidad y costo.</li>
+          <li>Cuando llega la mercancía, pulsa <b>Recibir todo</b> (o recibe parcial). Entra <b>automáticamente al inventario</b> con su costo.</li>
+          <li>La recepción genera la <b>cuenta por pagar</b>; registra los <b>pagos</b> al proveedor cuando corresponda.</li>
+        </ol>
+        <p>Las <b>requisiciones sugeridas</b> te dicen qué comprar según los faltantes de inventario.</p>
+      </section>
+
+      <section id="catalogo">
+        <h2>9. Productos y servicios</h2>
+        <p class="purpose">El catálogo: productos, refacciones y servicios, con sus precios y claves fiscales.</p>
+        <figure><img src="img/catalogo.png" alt="Catálogo de productos" loading="lazy"><figcaption>Alta de productos con precios, claves SAT y categorías.</figcaption></figure>
+        <h3>Crear un producto o servicio</h3>
+        <ol>
+          <li>Elige el <b>tipo</b> (consumible, refacción, equipo o servicio) y el nombre.</li>
+          <li>Agrega SKU, código de barras, categoría y marca.</li>
+          <li>Captura las <b>claves SAT</b> e <b>IVA</b> para facturación.</li>
+          <li>Define los <b>precios</b> (público, empresa, mayoreo) y, si aplica, publícalo en la tienda.</li>
+        </ol>
+        <p>En refacciones puedes registrar <b>compatibilidad</b> con modelos de equipo para encontrarlas rápido.</p>
+      </section>
+
+      <section id="gastos">
+        <h2>10. Gastos</h2>
+        <p class="purpose">Gastos del negocio por categoría y centro de costo, caja chica y nómina.</p>
+        <figure><img src="img/gastos.png" alt="Gastos" loading="lazy"><figcaption>Registro de gastos, caja chica y cálculo de nómina.</figcaption></figure>
+        <h3>Registrar un gasto</h3>
+        <ol><li>Elige la <b>categoría</b> (renta, luz, nómina, viáticos, otros) y el <b>centro de costo</b>.</li><li>Captura descripción y monto. Marca <b>caja chica</b> si se pagó de ahí.</li></ol>
+        <p>La <b>caja chica</b> lleva su saldo: los gastos lo bajan y las <b>reposiciones</b> lo devuelven. La <b>nómina</b> se calcula como un porcentaje de lo cobrado en órdenes del periodo y se registra como gasto.</p>
+      </section>
+
+      <section id="reportes">
+        <h2>11. Reportes y analítica</h2>
+        <p class="purpose">Los números del negocio: ventas, utilidad, inventario, gastos y productividad.</p>
+        <figure><img src="img/reportes.png" alt="Reportes" loading="lazy"><figcaption>Indicadores, utilidad por producto y productividad por técnico.</figcaption></figure>
+        <ul>
+          <li>Elige el <b>rango de fechas</b> y pulsa <b>Actualizar</b>.</li>
+          <li>Ves ingresos, gastos, utilidad, inventario valorizado y cuentas por cobrar/pagar.</li>
+          <li><b>Utilidad y margen por producto</b>, y <b>productividad por técnico</b> (tiempo y cumplimiento de SLA).</li>
+          <li>Cada tabla se puede <b>exportar a CSV</b> (se abre en Excel).</li>
+        </ul>
+      </section>
+
+      <section id="proyectos">
+        <h2>12. Proyectos</h2>
+        <p class="purpose">Servicios especiales (redes, infraestructura, etc.): etapas, visitas, materiales y pagos.</p>
+        <figure><img src="img/proyectos.png" alt="Proyectos" loading="lazy"><figcaption>Proyecto con etapas de avance, visitas, materiales y pagos.</figcaption></figure>
+        <ol>
+          <li>Crea el proyecto con su cliente, alcance y total cotizado.</li>
+          <li>Agrega <b>etapas</b> (con responsable y % de avance) y <b>visitas</b> en sitio.</li>
+          <li>Registra <b>materiales</b> (descuentan inventario) y <b>pagos</b> por anticipo, avance o cierre.</li>
+        </ol>
+        <p>Abajo se administran las <b>pólizas de mantenimiento</b> con sus servicios programados.</p>
+      </section>
+
+      <section id="config">
+        <h2>13. Configuración y seguridad <span class="tag">Admin</span></h2>
+        <p class="purpose">Ajustes del sistema: empresa, usuarios, plantillas, folios y auditoría. Solo para administradores.</p>
+        <figure><img src="img/configuracion.png" alt="Configuración" loading="lazy"><figcaption>Pestañas de configuración: empresa, usuarios, plantillas, folios y auditoría.</figcaption></figure>
+        <ul>
+          <li><b>Empresa:</b> datos y fiscales, política de días de abandono.</li>
+          <li><b>Usuarios:</b> alta de personal, roles (uno o varios) y PIN; activar/desactivar y cambiar contraseñas.</li>
+          <li><b>Plantillas:</b> mensajes de WhatsApp/correo para los avisos.</li>
+          <li><b>Folios:</b> consecutivos de órdenes, ventas y compras.</li>
+          <li><b>Auditoría:</b> bitácora de las acciones de los usuarios.</li>
+        </ul>
+      </section>
+
+      <section id="portal">
+        <h2>14. Portal del cliente <span class="tag">Público</span></h2>
+        <p class="purpose">Una página pública donde el cliente consulta el estatus de su equipo con su folio, sin entrar al sistema.</p>
+        <figure><img src="img/portal.png" alt="Portal público de estatus" loading="lazy"><figcaption>Consulta pública de estatus por folio.</figcaption></figure>
+        <ol><li>El cliente entra a la dirección del portal (<code>/portal</code>).</li><li>Escribe su <b>folio</b> (ej. <code>OT-000002</code>) y pulsa <b>Consultar</b>.</li><li>Ve la línea de tiempo de su reparación, sin las notas internas del técnico.</li></ol>
+      </section>
+
+      <section id="roles">
+        <h2>15. Quién usa qué (roles)</h2>
+        <p class="purpose">Cada persona ve y hace lo que su rol permite. Una persona puede tener varios roles.</p>
+        <table>
+          <thead><tr><th>Rol</th><th>Para qué</th><th>Módulos principales</th></tr></thead>
+          <tbody>
+            <tr><td><b>Administrador</b></td><td>Control total y configuración</td><td>Todos</td></tr>
+            <tr><td><b>Recepción</b></td><td>Recibir y entregar equipos, seguimiento</td><td>Clientes, Órdenes, Portal</td></tr>
+            <tr><td><b>Técnico</b></td><td>Diagnosticar, reparar, pedir refacciones</td><td>Órdenes, Inventario (consulta), Proyectos</td></tr>
+            <tr><td><b>Cajero</b></td><td>Vender, cobrar, facturar, cortes de caja</td><td>Ventas (POS), Clientes</td></tr>
+            <tr><td><b>Compras y almacén</b></td><td>Comprar, recibir, controlar existencias</td><td>Compras, Inventario, Productos</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <footer>
+        Manual básico del sistema COMPUSER — Centro de Servicio Autorizado EPSON. Las pantallas muestran datos de ejemplo. Para dudas o cambios, contacta al administrador del sistema.
+      </footer>
+    </main>
+  </div>
+</div>

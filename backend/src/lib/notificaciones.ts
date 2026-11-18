@@ -59,6 +59,53 @@ async function enviarWhatsApp(destino: string, mensaje: string): Promise<void> {
   }
 }
 
+// Envia una plantilla HSM aprobada por la WhatsApp Cloud API. Permite enviar
+// fuera de la ventana de 24h. 'params' son los valores de {{1}},{{2}},... del body.
+async function enviarWhatsAppTemplate(destino: string, nombre: string, lang: string, params: string[]): Promise<void> {
+  const token = process.env.WHATSAPP_TOKEN;
+  const phoneId = process.env.WHATSAPP_PHONE_ID;
+  const version = process.env.WHATSAPP_API_VERSION || 'v21.0';
+  if (!token || !phoneId) throw new Error('WhatsApp no configurado');
+  const body = {
+    messaging_product: 'whatsapp',
+    to: normalizarNumero(destino),
+    type: 'template',
+    template: {
+      name: nombre,
+      language: { code: lang },
+      components: params.length ? [{ type: 'body', parameters: params.map((t) => ({ type: 'text', text: String(t) })) }] : [],
+    },
+  };
+  const resp = await fetch(`https://graph.facebook.com/${version}/${phoneId}/messages`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(12000),
+  });
+  if (!resp.ok) {
+    const detalle = await resp.text().catch(() => '');
+    throw new Error(`WhatsApp template ${resp.status}: ${detalle.slice(0, 300)}`);
+  }
+}
+
+// Orden de los parametros ({{1}},{{2}},...) de la plantilla HSM por evento.
+// El usuario debe crear en Meta plantillas aprobadas con estos parametros en este orden.
+const PARAMS_HSM: Record<string, (v: Record<string, string>) => string[]> = {
+  recepcion: (v) => [v.cliente, v.equipo, v.folio],
+  autorizacion: (v) => [v.cliente, v.equipo, v.folio, v.total],
+  listo: (v) => [v.cliente, v.equipo, v.folio],
+  ticket: (v) => [v.cliente, v.folio, v.total],
+  factura: (v) => [v.cliente, v.folio, v.total],
+};
+
+// Config de plantillas HSM: { evento: { name, lang } } en Configuracion('whatsapp.templates').
+async function configHsm(): Promise<Record<string, { name?: string; lang?: string }>> {
+  try {
+    const c = await prisma.configuracion.findUnique({ where: { clave: 'whatsapp.templates' } });
+    return (c?.valor as any) ?? {};
+  } catch { return {}; }
+}
+
 export interface EventoNotif {
   evento: 'recepcion' | 'autorizacion' | 'listo' | 'ticket' | 'factura';
   orden?: any;   // con cliente y equipo
@@ -77,22 +124,32 @@ export async function notificar(ev: EventoNotif) {
     const equipo = orden?.equipo ? `${orden.equipo.tipo ?? ''} ${orden.equipo.marca ?? ''} ${orden.equipo.modelo ?? ''}`.trim() : '';
     const total = ev.venta ? money(ev.venta.total) : money(orden?.cotizacionTotal || orden?.costoDiagnostico);
 
-    const mensaje = render(texto, {
+    const vars = {
       cliente: cliente?.nombre ?? 'cliente',
       folio: orden?.folio ?? ev.venta?.folio ?? '',
       equipo, total,
       estatus: orden?.estatus ?? '',
-    });
+    };
+    const mensaje = render(texto, vars);
 
     const destino = await destinoCliente(clienteId, canal);
+    const waListo = !!process.env.WHATSAPP_TOKEN && !!process.env.WHATSAPP_PHONE_ID;
 
-    // Envio real: WhatsApp si esta configurado; correo pendiente (SMTP).
+    // Envio real: WhatsApp (plantilla HSM si esta configurada, si no texto); correo pendiente (SMTP).
     let estatus: 'SIMULADA' | 'ENVIADA' | 'SIN_DESTINO' | 'ERROR' = 'SIMULADA';
     if (!destino) {
       estatus = 'SIN_DESTINO';
-    } else if (canal === 'WHATSAPP' && process.env.WHATSAPP_TOKEN && process.env.WHATSAPP_PHONE_ID) {
-      try { await enviarWhatsApp(destino, mensaje); estatus = 'ENVIADA'; }
-      catch (err) { estatus = 'ERROR'; console.error('[notificaciones] WhatsApp falló:', (err as Error).message); }
+    } else if (canal === 'WHATSAPP' && waListo) {
+      try {
+        const tpl = (await configHsm())[ev.evento];
+        if (tpl?.name) {
+          const params = (PARAMS_HSM[ev.evento] ?? (() => []))(vars);
+          await enviarWhatsAppTemplate(destino, tpl.name, tpl.lang || process.env.WHATSAPP_LANG || 'es_MX', params);
+        } else {
+          await enviarWhatsApp(destino, mensaje); // respaldo: texto libre (solo dentro de 24h)
+        }
+        estatus = 'ENVIADA';
+      } catch (err) { estatus = 'ERROR'; console.error('[notificaciones] WhatsApp falló:', (err as Error).message); }
     }
     // (si canal === 'EMAIL' y SMTP_URL, aqui iria el envio por correo)
 

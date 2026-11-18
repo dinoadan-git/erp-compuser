@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
 
 const ROLES = ['ADMINISTRADOR', 'RECEPCION', 'TECNICO', 'CAJERO', 'COMPRAS_ALMACEN'];
-const TABS = ['Empresa', 'Usuarios', 'Plantillas', 'Folios', 'Auditoría'];
+const TABS = ['Empresa', 'Usuarios', 'Plantillas', 'WhatsApp', 'Folios', 'Auditoría'];
 
 export default function Configuracion() {
   const [tab, setTab] = useState('Empresa');
@@ -17,6 +17,7 @@ export default function Configuracion() {
       {tab === 'Empresa' && <Empresa />}
       {tab === 'Usuarios' && <Usuarios />}
       {tab === 'Plantillas' && <Plantillas />}
+      {tab === 'WhatsApp' && <WhatsAppHsm />}
       {tab === 'Folios' && <Folios />}
       {tab === 'Auditoría' && <Auditoria />}
     </div>
@@ -143,6 +144,43 @@ function Plantillas() {
         {plantillas.map((p) => <div key={p.id} className="border-b py-2"><b>{p.clave}</b> <span className="text-xs text-slate-400">({p.canal})</span><div className="text-slate-600">{p.cuerpo}</div></div>)}
         {plantillas.length === 0 && <div className="text-slate-400">Sin plantillas</div>}
       </div>
+    </div>
+  );
+}
+
+function WhatsAppHsm() {
+  const EVENTOS = [
+    { k: 'recepcion', t: 'Recepcion de equipo', params: '{{1}} cliente · {{2}} equipo · {{3}} folio' },
+    { k: 'autorizacion', t: 'Autorizacion de diagnostico', params: '{{1}} cliente · {{2}} equipo · {{3}} folio · {{4}} total' },
+    { k: 'listo', t: 'Listo para entrega', params: '{{1}} cliente · {{2}} equipo · {{3}} folio' },
+    { k: 'ticket', t: 'Entrega de ticket', params: '{{1}} cliente · {{2}} folio · {{3}} total' },
+    { k: 'factura', t: 'Entrega de factura', params: '{{1}} cliente · {{2}} folio · {{3}} total' },
+  ];
+  const [cfg, setCfg] = useState<Record<string, { name?: string; lang?: string }>>({});
+  const [msg, setMsg] = useState('');
+  useEffect(() => { api.get('/config/parametros/whatsapp.templates').then((r) => setCfg(r.data || {})).catch(() => {}); }, []);
+  const set = (k: string, campo: string, v: string) => setCfg({ ...cfg, [k]: { ...(cfg[k] || {}), [campo]: v } });
+  async function guardar() { await api.put('/config/parametros/whatsapp.templates', { valor: cfg }); setMsg('Plantillas guardadas'); }
+
+  return (
+    <div className="bg-white rounded-xl shadow p-4 text-sm space-y-3">
+      {msg && <div className="p-2 bg-green-50 text-green-700 rounded">{msg}</div>}
+      <p className="text-slate-500">
+        Captura el <b>nombre exacto</b> de cada plantilla aprobada en Meta y su idioma (ej. <code>es_MX</code>).
+        Crea en Meta plantillas con los parametros en el orden indicado. Si dejas el nombre vacio, ese evento se envia como texto libre (solo funciona dentro de la ventana de 24 h).
+      </p>
+      {EVENTOS.map((e) => (
+        <div key={e.k} className="border rounded p-3">
+          <div className="font-medium">{e.t}</div>
+          <div className="text-xs text-slate-400 mb-2">Parametros de la plantilla: {e.params}</div>
+          <div className="grid md:grid-cols-2 gap-2">
+            <input className="border rounded px-2 py-1" placeholder="Nombre de la plantilla (Meta)" value={cfg[e.k]?.name || ''} onChange={(ev) => set(e.k, 'name', ev.target.value)} />
+            <input className="border rounded px-2 py-1" placeholder="Idioma (ej. es_MX)" value={cfg[e.k]?.lang || ''} onChange={(ev) => set(e.k, 'lang', ev.target.value)} />
+          </div>
+        </div>
+      ))}
+      <button onClick={guardar} className="bg-primary-600 text-white rounded px-4 py-1">Guardar plantillas</button>
+      <p className="text-xs text-slate-400">Ademas configura en el servidor: <code>WHATSAPP_TOKEN</code>, <code>WHATSAPP_PHONE_ID</code> y <code>WHATSAPP_COUNTRY_CODE</code>.</p>
     </div>
   );
 }

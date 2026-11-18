@@ -4,7 +4,7 @@ After=network.target postgresql.service
 
 [Service]
 Type=simple
-User=csa
+User=root
 WorkingDirectory=/opt/erp-compuser/backend
 EnvironmentFile=/opt/erp-compuser/backend/.env
 ExecStart=/usr/bin/node dist/index.js

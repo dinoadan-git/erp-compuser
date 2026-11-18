@@ -1,0 +1,16 @@
+# --- CSA EPSON ERP (agregar al final de /etc/caddy/Caddyfile) ---
+# Opcion B: sin dominio, por IP en el puerto 8080 (HTTP).
+:8080 {
+    root * /opt/erp-compuser/frontend/dist
+    encode gzip
+
+    handle /api/* {
+        reverse_proxy 127.0.0.1:4000
+    }
+    handle {
+        try_files {path} /index.html
+        file_server
+    }
+}
+# Si luego tienes un (sub)dominio, cambia ":8080" por "erp.tudominio.com"
+# y Caddy le pone HTTPS automatico.

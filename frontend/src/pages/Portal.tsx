@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
+import { Logo } from '../components/Logo';
 
 const ESTATUS_LABEL: Record<string, string> = {
   RECIBIDO: 'Recibido', EN_DIAGNOSTICO: 'En diagnostico', ESPERANDO_AUTORIZACION: 'Esperando autorizacion',
@@ -31,8 +32,9 @@ export default function Portal() {
 
   return (
     <div className="min-h-screen bg-slate-100 flex flex-col items-center pt-16 px-4">
-      <h1 className="text-2xl font-bold mb-2">Estatus de tu equipo</h1>
-      <p className="text-slate-500 mb-6 text-sm">Centro de Servicio Autorizado EPSON</p>
+      <div className="mb-2"><Logo size={48} /></div>
+      <h1 className="text-xl font-bold mb-1">Estatus de tu equipo</h1>
+      <p className="text-slate-500 mb-6 text-sm">Centro de Servicio Autorizado EPSON · Canon</p>
       <form onSubmit={(e) => { e.preventDefault(); buscar({ folio }); }} className="flex gap-2 mb-6">
         <input className="border rounded px-3 py-2 text-sm w-56" placeholder="Folio (ej. OT-000001)"
           value={folio} onChange={(e) => setFolio(e.target.value)} />

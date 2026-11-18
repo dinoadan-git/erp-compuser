@@ -8,7 +8,7 @@ async function main() {
   await prisma.empresa.upsert({
     where: { id: 1 },
     update: {},
-    create: { id: 1, nombre: 'Centro de Servicio Autorizado EPSON', diasAbandono: 90 },
+    create: { id: 1, nombre: 'Compuservicios', diasAbandono: 90 },
   });
 
   const pass = await bcrypt.hash('cambiar123', 10);

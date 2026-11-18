@@ -126,11 +126,51 @@ ordenesRouter.post('/:id/estatus', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-// Asignar tecnico responsable.
+// Asignar tecnico responsable (recepcion/admin).
 ordenesRouter.post('/:id/tecnico', requireRole('RECEPCION', 'ADMINISTRADOR'), async (req, res, next) => {
   try {
     const tecnicoId = z.coerce.number().parse(req.body.tecnicoId);
-    const orden = await prisma.ordenTrabajo.update({ where: { id: Number(req.params.id) }, data: { tecnicoId } });
+    const orden = await prisma.ordenTrabajo.update({
+      where: { id: Number(req.params.id) },
+      data: { tecnicoId, bitacora: { create: { estatus: (await prisma.ordenTrabajo.findUnique({ where: { id: Number(req.params.id) } }))!.estatus, nota: 'Tecnico asignado', soloInterno: true, usuarioId: req.user!.id } } },
+    });
+    res.json(orden);
+  } catch (e) { next(e); }
+});
+
+// Tomar la orden: el usuario actual (tecnico) se asigna a si mismo.
+ordenesRouter.post('/:id/tomar', async (req, res, next) => {
+  try {
+    const id = Number(req.params.id);
+    const actual = await prisma.ordenTrabajo.findUnique({ where: { id } });
+    if (!actual) return res.status(404).json({ error: 'Orden no encontrada' });
+    const orden = await prisma.ordenTrabajo.update({
+      where: { id },
+      data: { tecnicoId: req.user!.id, bitacora: { create: { estatus: actual.estatus, nota: `Tomada por ${req.user!.nombre}`, soloInterno: true, usuarioId: req.user!.id } } },
+    });
+    res.json(orden);
+  } catch (e) { next(e); }
+});
+
+// Editar datos de la orden (diagnostico, cotizacion, autorizacion, etc.).
+ordenesRouter.patch('/:id', async (req, res, next) => {
+  try {
+    const d = z.object({
+      fallaReportada: z.string().min(1).optional(),
+      estadoFisico: z.string().optional(),
+      diagnostico: z.string().optional(),
+      costoDiagnostico: z.coerce.number().min(0).optional(),
+      cotizacionTotal: z.coerce.number().min(0).optional(),
+      tipoGarantia: z.enum(['NINGUNA', 'EPSON', 'TALLER']).optional(),
+      prometidaEn: z.coerce.date().optional(),
+      autorizadaPor: z.string().optional(),
+      autorizada: z.boolean().optional(),
+    }).parse(req.body);
+    const { autorizada, ...campos } = d;
+    const orden = await prisma.ordenTrabajo.update({
+      where: { id: Number(req.params.id) },
+      data: { ...campos, ...(autorizada ? { autorizadaEn: new Date() } : {}) },
+    });
     res.json(orden);
   } catch (e) { next(e); }
 });

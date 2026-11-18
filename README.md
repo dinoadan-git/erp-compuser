@@ -66,7 +66,7 @@ npm run dev                      # app en http://localhost:5173
 | 3.5 | Ventas de mostrador (POS) | ✅ corte de caja, venta + descuento de stock, formas de pago, cobro de órdenes, devoluciones/NC; CFDI pendiente de PAC |
 | 3.7 | Proyectos y servicios especiales | 🧱 andamiaje + modelo de datos |
 | 3.9 | Gastos | 🧱 andamiaje + modelo de datos |
-| 3.10 | Reportes y analítica | 🧱 andamiaje |
+| 3.10 | Reportes y analítica | ✅ KPIs, órdenes por estatus, productividad/SLA, utilidad y margen, inventario valorizado, gastos vs ingresos, export CSV |
 | 3.11 | Configuración y seguridad | 🧱 andamiaje (auth/roles/auditoría en el modelo) |
 
 El **modelo de datos completo de los 11 módulos** ya está en `backend/prisma/schema.prisma`.

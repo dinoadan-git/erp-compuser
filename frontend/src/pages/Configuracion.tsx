@@ -45,6 +45,7 @@ function Empresa() {
 function Usuarios() {
   const [usuarios, setUsuarios] = useState<any[]>([]);
   const [f, setF] = useState<any>({ nombre: '', email: '', password: '', pin: '', roles: ['RECEPCION'] });
+  const [edit, setEdit] = useState<any>(null); // usuario en edicion
   const [msg, setMsg] = useState('');
   const cargar = () => api.get('/config/usuarios').then((r) => setUsuarios(r.data)).catch(() => {});
   useEffect(() => { cargar(); }, []);
@@ -54,6 +55,17 @@ function Usuarios() {
   }
   async function toggle(u: any) { await api.put(`/config/usuarios/${u.id}`, { activo: !u.activo }); cargar(); }
   function toggleRol(r: string) { setF({ ...f, roles: f.roles.includes(r) ? f.roles.filter((x: string) => x !== r) : [...f.roles, r] }); }
+
+  function abrirEdicion(u: any) { setEdit({ id: u.id, nombre: u.nombre, email: u.email, roles: [...u.roles], password: '', pin: '' }); setMsg(''); }
+  function toggleRolEdit(r: string) { setEdit({ ...edit, roles: edit.roles.includes(r) ? edit.roles.filter((x: string) => x !== r) : [...edit.roles, r] }); }
+  async function guardarEdicion() {
+    const body: any = { nombre: edit.nombre, roles: edit.roles };
+    if (edit.password) body.password = edit.password;
+    if (edit.pin) body.pin = edit.pin;
+    try { await api.put(`/config/usuarios/${edit.id}`, body); setMsg('Usuario actualizado'); setEdit(null); cargar(); }
+    catch (err: any) { setMsg(err?.response?.data?.error ?? 'Error'); }
+  }
+
   return (
     <div className="space-y-4">
       {msg && <div className="p-2 bg-primary-50 text-primary-800 rounded text-sm">{msg}</div>}
@@ -67,16 +79,40 @@ function Usuarios() {
           {ROLES.map((r) => <label key={r} className="flex items-center gap-1 text-xs"><input type="checkbox" checked={f.roles.includes(r)} onChange={() => toggleRol(r)} />{r}</label>)}
         </div>
       </div>
+
+      {/* Panel de edicion (cambiar contraseña, PIN, roles, nombre) */}
+      {edit && (
+        <div className="bg-white rounded-xl shadow p-4 text-sm border-2 border-primary-300">
+          <div className="flex justify-between items-center mb-2">
+            <b>Editar usuario: {edit.email}</b>
+            <button onClick={() => setEdit(null)} className="text-slate-400 text-xs">cerrar</button>
+          </div>
+          <div className="grid md:grid-cols-4 gap-2 items-end">
+            <label className="block">Nombre<input className="w-full border rounded px-2 py-1" value={edit.nombre} onChange={(e) => setEdit({ ...edit, nombre: e.target.value })} /></label>
+            <label className="block">Nueva contraseña<input className="w-full border rounded px-2 py-1" type="password" placeholder="(dejar en blanco = sin cambio)" value={edit.password} onChange={(e) => setEdit({ ...edit, password: e.target.value })} /></label>
+            <label className="block">Nuevo PIN<input className="w-full border rounded px-2 py-1" placeholder="4 dígitos (opcional)" value={edit.pin} onChange={(e) => setEdit({ ...edit, pin: e.target.value })} /></label>
+            <button onClick={guardarEdicion} className="bg-primary-600 text-white rounded px-3 py-1">Guardar cambios</button>
+          </div>
+          <div className="flex flex-wrap gap-3 mt-2">
+            {ROLES.map((r) => <label key={r} className="flex items-center gap-1 text-xs"><input type="checkbox" checked={edit.roles.includes(r)} onChange={() => toggleRolEdit(r)} />{r}</label>)}
+          </div>
+          <p className="text-xs text-slate-400 mt-2">La contraseña debe tener al menos 6 caracteres. Deja los campos en blanco para no cambiarlos.</p>
+        </div>
+      )}
+
       <div className="bg-white rounded-xl shadow overflow-hidden">
         <table className="w-full text-sm">
-          <thead className="bg-slate-100 text-left"><tr><th className="px-4 py-2">Nombre</th><th className="px-4 py-2">Email</th><th className="px-4 py-2">Roles</th><th className="px-4 py-2">Estado</th><th className="px-4 py-2"></th></tr></thead>
+          <thead className="bg-slate-100 text-left"><tr><th className="px-4 py-2">Nombre</th><th className="px-4 py-2">Email</th><th className="px-4 py-2">Roles</th><th className="px-4 py-2">Estado</th><th className="px-4 py-2 text-right">Acciones</th></tr></thead>
           <tbody>
             {usuarios.map((u) => (
               <tr key={u.id} className="border-t">
                 <td className="px-4 py-2">{u.nombre}</td><td className="px-4 py-2">{u.email}</td>
                 <td className="px-4 py-2 text-xs">{u.roles.join(', ')}</td>
                 <td className="px-4 py-2">{u.activo ? <span className="text-green-600">activo</span> : <span className="text-slate-400">inactivo</span>}</td>
-                <td className="px-4 py-2 text-right"><button onClick={() => toggle(u)} className="text-xs text-primary-600">{u.activo ? 'Desactivar' : 'Activar'}</button></td>
+                <td className="px-4 py-2 text-right whitespace-nowrap">
+                  <button onClick={() => abrirEdicion(u)} className="text-xs text-primary-600 mr-3">Editar</button>
+                  <button onClick={() => toggle(u)} className="text-xs text-slate-500">{u.activo ? 'Desactivar' : 'Activar'}</button>
+                </td>
               </tr>
             ))}
           </tbody>

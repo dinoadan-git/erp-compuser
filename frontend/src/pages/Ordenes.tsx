@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
-import { generarOrdenPdf } from '../lib/ordenPdf';
+import { generarOrdenPdf, generarComprobanteRecepcion } from '../lib/ordenPdf';
 
 const ESTATUS_LABEL: Record<string, string> = {
   RECIBIDO: 'Recibido', EN_DIAGNOSTICO: 'En diagnostico', ESPERANDO_AUTORIZACION: 'Esperando autorizacion',
@@ -198,7 +198,8 @@ function Detalle({ orden, tecnicos, user, onBack, onReload }: { orden: any; tecn
         </div>
         <div className="flex items-center gap-2">
           <span className="px-3 py-1 rounded-full bg-primary-50 text-primary-700 text-sm font-medium">{ESTATUS_LABEL[orden.estatus] ?? orden.estatus}</span>
-          <button onClick={() => generarOrdenPdf(orden, empresa)} className="bg-slate-800 text-white rounded px-3 py-1.5 text-sm">Generar PDF</button>
+          <button onClick={() => generarComprobanteRecepcion(orden, empresa)} className="bg-slate-600 text-white rounded px-3 py-1.5 text-sm">Comprobante recepcion</button>
+          <button onClick={() => generarOrdenPdf(orden, empresa)} className="bg-slate-800 text-white rounded px-3 py-1.5 text-sm">Orden de servicio PDF</button>
         </div>
       </div>
 

@@ -1,4 +1,5 @@
 import { jsPDF } from 'jspdf';
+import QRCode from 'qrcode';
 
 const ESTATUS_LABEL: Record<string, string> = {
   RECIBIDO: 'Recibido', EN_DIAGNOSTICO: 'En diagnostico', ESPERANDO_AUTORIZACION: 'Esperando autorizacion',
@@ -103,4 +104,77 @@ export function generarOrdenPdf(orden: any, empresa?: any) {
   doc.text('Documento generado por el sistema CSA EPSON', M, doc.internal.pageSize.getHeight() - 10);
 
   doc.save(`${orden.folio || 'orden'}.pdf`);
+}
+
+// Comprobante de recepcion (version corta) con codigo QR para consultar estatus.
+export async function generarComprobanteRecepcion(orden: any, empresa?: any, baseUrl?: string) {
+  const origin = baseUrl || (typeof window !== 'undefined' ? window.location.origin : '');
+  // El QR lleva al portal publico con el token de la orden.
+  const url = `${origin}/portal?token=${orden.qrToken || ''}`;
+  let qrData = '';
+  try { qrData = await QRCode.toDataURL(url, { margin: 1, width: 320 }); } catch { /* sin QR si falla */ }
+
+  const doc = new jsPDF({ unit: 'mm', format: 'letter' });
+  const M = 15;
+  const W = doc.internal.pageSize.getWidth();
+  let y = M;
+  const line = (yy: number) => { doc.setDrawColor(200); doc.line(M, yy, W - M, yy); };
+  const label = (t: string, x: number, yy: number) => { doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(110); doc.text(t.toUpperCase(), x, yy); };
+  const value = (t: string, x: number, yy: number) => { doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(30); doc.text(t || '-', x, yy); };
+
+  // Encabezado
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(14); doc.setTextColor(2, 132, 199);
+  doc.text(empresa?.nombre || 'Centro de Servicio Autorizado EPSON', M, y);
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(90);
+  if (empresa?.rfc) { y += 5; doc.text(`RFC: ${empresa.rfc}`, M, y); }
+  if (empresa?.telefono) { y += 4; doc.text(`Tel: ${empresa.telefono}`, M, y); }
+
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(12); doc.setTextColor(30);
+  doc.text('COMPROBANTE DE RECEPCION', W - M, M, { align: 'right' });
+  doc.setFontSize(12); doc.setTextColor(2, 132, 199);
+  doc.text(String(orden.folio || ''), W - M, M + 6, { align: 'right' });
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(110);
+  doc.text(`Fecha: ${new Date(orden.recibidaEn || Date.now()).toLocaleString('es-MX')}`, W - M, M + 11, { align: 'right' });
+
+  y = Math.max(y, M + 11) + 8; line(y); y += 8;
+
+  // Cliente y equipo
+  label('Cliente', M, y); y += 5; value(orden.cliente?.nombre || '', M, y); y += 8;
+  label('Equipo', M, y); y += 5;
+  value(`${orden.equipo?.tipo || ''} ${orden.equipo?.marca || ''} ${orden.equipo?.modelo || ''}`.trim(), M, y); y += 5;
+  value(`No. de serie: ${orden.equipo?.numeroSerie || 's/n'}`, M, y); y += 8;
+
+  const bloque = (t: string, txt: string) => {
+    label(t, M, y); y += 5;
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(30);
+    const lines = doc.splitTextToSize(txt || '-', W - 2 * M - 55);
+    doc.text(lines, M, y); y += lines.length * 5 + 4;
+  };
+  const yAntes = y;
+  bloque('Falla reportada', orden.fallaReportada);
+  if (orden.estadoFisico) bloque('Estado fisico / accesorios', orden.estadoFisico);
+
+  // QR a la derecha
+  if (qrData) {
+    const size = 42, qx = W - M - size, qy = yAntes - 2;
+    doc.addImage(qrData, 'PNG', qx, qy, size, size);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(7); doc.setTextColor(110);
+    doc.text('Escanea para ver', qx + size / 2, qy + size + 4, { align: 'center' });
+    doc.text('el estatus de tu equipo', qx + size / 2, qy + size + 7.5, { align: 'center' });
+  }
+
+  y = Math.max(y, yAntes + 52) + 6; line(y); y += 8;
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(80);
+  const nota = `Consulta el estatus de tu reparacion en: ${origin}/portal con tu folio ${orden.folio || ''}, o escaneando el codigo QR. Conserva este comprobante; es necesario para recoger tu equipo.`;
+  doc.text(doc.splitTextToSize(nota, W - 2 * M), M, y);
+
+  // Firma
+  y = doc.internal.pageSize.getHeight() - 38;
+  doc.setDrawColor(120); doc.line(M + 15, y, W / 2 + 10, y);
+  doc.setFontSize(8); doc.setTextColor(110);
+  doc.text('Recibi conforme (firma del cliente)', M + 15, y + 4);
+  doc.setFontSize(7); doc.setTextColor(150);
+  doc.text('Documento generado por el sistema CSA EPSON', M, doc.internal.pageSize.getHeight() - 10);
+
+  doc.save(`${orden.folio || 'orden'}-recepcion.pdf`);
 }

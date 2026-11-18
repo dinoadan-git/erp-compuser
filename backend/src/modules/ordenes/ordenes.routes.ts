@@ -92,6 +92,7 @@ ordenesRouter.get('/:id', async (req, res, next) => {
         cliente: true, equipo: true, tecnico: { select: { id: true, nombre: true } },
         bitacora: { orderBy: { creadoEn: 'desc' }, include: { usuario: { select: { nombre: true } } } },
         consumos: { include: { producto: true } },
+        venta: { include: { pagos: true } },
       },
     });
     if (!orden) return res.status(404).json({ error: 'Orden no encontrada' });

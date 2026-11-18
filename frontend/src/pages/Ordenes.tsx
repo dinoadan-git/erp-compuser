@@ -170,6 +170,21 @@ function Detalle({ orden, tecnicos, user, onBack, onReload }: { orden: any; tecn
     catch (e: any) { setMsg(e?.response?.data?.error ?? 'Error'); }
   }
 
+  const [formaPago, setFormaPago] = useState('EFECTIVO');
+  const baseCobro = Number(orden.cotizacionTotal) > 0 ? Number(orden.cotizacionTotal) : Number(orden.costoDiagnostico) || 0;
+  const totalCobro = Math.round(baseCobro * 1.16 * 100) / 100;
+  async function cobrar() {
+    try {
+      const { data } = await api.post(`/ventas/orden/${orden.id}`, { forma: formaPago });
+      setMsg(`Orden cobrada. Ticket ${data.folio} por $${Number(data.total).toFixed(2)}`);
+      onReload();
+    } catch (e: any) { setMsg(e?.response?.data?.error ?? 'Error al cobrar'); }
+  }
+  async function cambiarAEntregado() {
+    try { await api.post(`/ordenes/${orden.id}/estatus`, { estatus: 'ENTREGADO', nota: 'Equipo entregado y cobrado' }); setMsg('Orden entregada'); onReload(); }
+    catch (e: any) { setMsg(e?.response?.data?.error ?? 'Error'); }
+  }
+
   async function cambiarEstatus() {
     try { await api.post(`/ordenes/${orden.id}/estatus`, { estatus, nota: nota || undefined }); setMsg('Estatus actualizado'); setNota(''); onReload(); }
     catch (e: any) { setMsg(e?.response?.data?.error ?? 'Error'); }
@@ -240,6 +255,32 @@ function Detalle({ orden, tecnicos, user, onBack, onReload }: { orden: any; tecn
             <label>Garantia<select className="w-full border rounded px-2 py-1" value={ed.tipoGarantia} onChange={(e) => setEd({ ...ed, tipoGarantia: e.target.value })}><option value="NINGUNA">Ninguna</option><option value="EPSON">EPSON</option><option value="TALLER">Taller</option></select></label>
           </div>
           <button onClick={guardarEdicion} className="bg-primary-600 text-white rounded px-4 py-1">Guardar cambios</button>
+        </div>
+
+        {/* Cobro en POS */}
+        <div className="bg-white rounded-xl shadow p-4 text-sm md:col-span-2">
+          <h2 className="font-semibold mb-2">Cobro</h2>
+          {orden.venta ? (
+            <div className="p-3 bg-green-50 text-green-800 rounded">
+              Orden cobrada — Ticket <b>{orden.venta.folio}</b> por <b>${Number(orden.venta.total).toFixed(2)}</b>
+              {orden.estatus !== 'ENTREGADO' && (
+                <button onClick={cambiarAEntregado} className="ml-3 bg-green-600 text-white rounded px-3 py-1 text-xs">Marcar entregado</button>
+              )}
+            </div>
+          ) : (
+            <div className="flex flex-wrap items-end gap-3">
+              <div>
+                <div className="text-slate-500 text-xs">Importe a cobrar (cotizacion + IVA)</div>
+                <div className="text-2xl font-bold text-primary-700">${totalCobro.toFixed(2)}</div>
+                <div className="text-xs text-slate-400">Base ${baseCobro.toFixed(2)} + IVA</div>
+              </div>
+              <select value={formaPago} onChange={(e) => setFormaPago(e.target.value)} className="border rounded px-2 py-1">
+                <option value="EFECTIVO">Efectivo</option><option value="TARJETA">Tarjeta</option><option value="TRANSFERENCIA">Transferencia</option><option value="CREDITO">Credito</option>
+              </select>
+              <button onClick={cobrar} disabled={baseCobro <= 0} className="bg-green-600 disabled:bg-slate-300 text-white rounded px-5 py-2 font-medium">Cobrar en caja</button>
+              {baseCobro <= 0 && <span className="text-xs text-amber-600">Captura la cotizacion antes de cobrar.</span>}
+            </div>
+          )}
         </div>
 
         {/* Refacciones / materiales */}

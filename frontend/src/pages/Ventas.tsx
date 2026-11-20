@@ -14,14 +14,23 @@ export default function Ventas() {
   const [prods, setProds] = useState<Prod[]>([]);
   const [carrito, setCarrito] = useState<Linea[]>([]);
   const [forma, setForma] = useState('EFECTIVO');
+  const [cobrarIva, setCobrarIva] = useState(true);
+  const [ordenCobro, setOrdenCobro] = useState<any>(null);
+  const [empresa, setEmpresa] = useState<any>(null);
   const [msg, setMsg] = useState('');
 
   const cargarCaja = () => api.get('/ventas/caja/actual').then((r) => setCaja(r.data)).catch(() => {});
-  useEffect(() => { cargarCaja(); }, []);
+  useEffect(() => {
+    cargarCaja();
+    api.get('/config/empresa').then((r) => setEmpresa(r.data)).catch(() => {});
+    // Si llegamos desde una orden (?orden=ID), cargar el cobro de esa orden.
+    const id = new URLSearchParams(window.location.search).get('orden');
+    if (id) api.get(`/ordenes/${id}`).then((r) => { setOrdenCobro(r.data); setVista('pos'); }).catch(() => {});
+  }, []);
   useEffect(() => { if (q.trim()) api.get('/catalogo/productos', { params: { q } }).then((r) => setProds(r.data)); else setProds([]); }, [q]);
 
   const subtotal = carrito.reduce((s, l) => s + l.cantidad * l.precioUnit, 0);
-  const iva = carrito.reduce((s, l) => s + l.cantidad * l.precioUnit * (l.tasaIva / 100), 0);
+  const iva = cobrarIva ? carrito.reduce((s, l) => s + l.cantidad * l.precioUnit * (l.tasaIva / 100), 0) : 0;
   const total = subtotal + iva;
 
   function agregar(p: Prod) {
@@ -45,7 +54,7 @@ export default function Ventas() {
   async function cobrar() {
     try {
       const { data } = await api.post('/ventas', {
-        tipo: 'TICKET',
+        tipo: 'TICKET', cobrarIva,
         items: carrito.map((l) => ({ productoId: l.productoId, cantidad: l.cantidad, precioUnit: l.precioUnit })),
         pagos: [{ forma, monto: Number(total.toFixed(2)) }],
       });
@@ -55,6 +64,30 @@ export default function Ventas() {
       setMsg(e?.response?.data?.error ?? 'Error al cobrar');
     }
   }
+
+  // Cobro de la orden de trabajo precargada (viene del detalle de la orden).
+  async function cobrarOrden() {
+    if (!ordenCobro) return;
+    try {
+      const { data } = await api.post(`/ventas/orden/${ordenCobro.id}`, { forma, cobrarIva });
+      setMsg(`Orden ${ordenCobro.folio} cobrada. Ticket ${data.folio} por $${Number(data.total).toFixed(2)}`);
+      try { const full = await api.get(`/ventas/${data.id}`); generarTicketVenta(full.data, empresa); } catch { /* ignore */ }
+      setOrdenCobro(null);
+      window.history.replaceState({}, '', '/ventas');
+    } catch (e: any) {
+      setMsg(e?.response?.data?.error ?? 'Error al cobrar la orden');
+    }
+  }
+
+  // Desglose de la orden para mostrar en el POS.
+  const ordLineas = ordenCobro ? [
+    ...(ordenCobro.consumos || []).map((c: any) => ({ desc: c.producto?.nombre ?? `#${c.productoId}`, cant: Number(c.cantidad), precioUnit: Number(c.precioUnit) })),
+    ...(Number(ordenCobro.cotizacionTotal) > 0 ? [{ desc: 'Mano de obra y servicio', cant: 1, precioUnit: Number(ordenCobro.cotizacionTotal) }]
+      : Number(ordenCobro.costoDiagnostico) > 0 ? [{ desc: 'Diagnostico', cant: 1, precioUnit: Number(ordenCobro.costoDiagnostico) }] : []),
+  ] : [];
+  const ordSub = ordLineas.reduce((s, l) => s + l.cant * l.precioUnit, 0);
+  const ordIva = cobrarIva ? ordSub * 0.16 : 0;
+  const ordTotal = ordSub + ordIva;
 
   return (
     <div>
@@ -88,6 +121,43 @@ export default function Ventas() {
         )}
       </div>
 
+      {/* Cobro de orden de trabajo (precargado desde la orden) */}
+      {ordenCobro && (
+        <div className="bg-white rounded-xl shadow p-5 mb-4 border-2 border-primary-300">
+          <div className="flex justify-between items-center mb-3">
+            <h2 className="font-semibold text-lg">Cobro de orden {ordenCobro.folio} · {ordenCobro.cliente?.nombre}</h2>
+            <button onClick={() => { setOrdenCobro(null); window.history.replaceState({}, '', '/ventas'); }} className="text-slate-400 text-sm">cancelar</button>
+          </div>
+          <table className="w-full text-sm mb-3">
+            <thead className="text-left text-xs text-slate-500"><tr><th className="py-1">Concepto</th><th className="py-1 text-right">Cant.</th><th className="py-1 text-right">P. unit</th><th className="py-1 text-right">Importe</th></tr></thead>
+            <tbody>
+              {ordLineas.map((l, i) => (
+                <tr key={i} className="border-t">
+                  <td className="py-1">{l.desc}</td>
+                  <td className="py-1 text-right">{l.cant}</td>
+                  <td className="py-1 text-right">${l.precioUnit.toFixed(2)}</td>
+                  <td className="py-1 text-right">${(l.cant * l.precioUnit).toFixed(2)}</td>
+                </tr>
+              ))}
+              {ordLineas.length === 0 && <tr><td colSpan={4} className="py-3 text-center text-slate-400">Sin conceptos. Captura la cotizacion o consume refacciones en la orden.</td></tr>}
+            </tbody>
+          </table>
+          <div className="flex flex-wrap items-end justify-end gap-4 border-t pt-3">
+            <label className="flex items-center gap-2 text-sm mr-auto"><input type="checkbox" checked={cobrarIva} onChange={(e) => setCobrarIva(e.target.checked)} /> Cobrar IVA</label>
+            <div className="text-sm text-right">
+              <div>Subtotal: ${ordSub.toFixed(2)}</div>
+              <div>IVA: ${ordIva.toFixed(2)}</div>
+              <div className="text-xl font-bold text-primary-700">Total: ${ordTotal.toFixed(2)}</div>
+            </div>
+            <select value={forma} onChange={(e) => setForma(e.target.value)} className="border rounded px-2 py-1 text-sm">
+              <option value="EFECTIVO">Efectivo</option><option value="TARJETA">Tarjeta</option><option value="TRANSFERENCIA">Transferencia</option><option value="CREDITO">Credito</option>
+            </select>
+            <button onClick={cobrarOrden} disabled={ordLineas.length === 0} className="bg-green-600 disabled:bg-slate-300 text-white rounded px-5 py-2 font-medium">Cobrar y generar ticket</button>
+          </div>
+        </div>
+      )}
+
+      {!ordenCobro && (
       <div className="grid md:grid-cols-2 gap-4">
         {/* Buscador de productos */}
         <div className="bg-white rounded-xl shadow p-4">
@@ -129,7 +199,7 @@ export default function Ventas() {
           </div>
           <div className="mt-3 border-t pt-3 text-sm space-y-1">
             <div className="flex justify-between"><span>Subtotal</span><span>${subtotal.toFixed(2)}</span></div>
-            <div className="flex justify-between"><span>IVA</span><span>${iva.toFixed(2)}</span></div>
+            <label className="flex items-center justify-between"><span className="flex items-center gap-2"><input type="checkbox" checked={cobrarIva} onChange={(e) => setCobrarIva(e.target.checked)} /> Cobrar IVA</span><span>${iva.toFixed(2)}</span></label>
             <div className="flex justify-between font-bold text-lg"><span>Total</span><span>${total.toFixed(2)}</span></div>
             <select value={forma} onChange={(e) => setForma(e.target.value)} className="w-full border rounded px-2 py-1 mt-2">
               <option value="EFECTIVO">Efectivo</option>
@@ -145,6 +215,7 @@ export default function Ventas() {
           </div>
         </div>
       </div>
+      )}
       </>)}
     </div>
   );

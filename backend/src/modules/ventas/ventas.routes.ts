@@ -75,6 +75,7 @@ const itemSchema = z.object({
 const ventaSchema = z.object({
   tipo: z.enum(['TICKET', 'FACTURA', 'COTIZACION', 'APARTADO']).default('TICKET'),
   clienteId: z.coerce.number().optional(),
+  cobrarIva: z.boolean().default(true),
   items: z.array(itemSchema).min(1),
   pagos: z.array(z.object({
     forma: z.enum(['EFECTIVO', 'TARJETA', 'TRANSFERENCIA', 'CREDITO', 'MIXTO']),
@@ -93,7 +94,8 @@ ventasRouter.post('/', async (req, res, next) => {
     const items: Required<Pick<ItemVenta, 'cantidad' | 'precioUnit'>> & any = body.items.map((it) => {
       const p = mapProd.get(it.productoId);
       if (!p) throw new Error(`Producto ${it.productoId} no existe`);
-      return { ...it, tasaIva: it.tasaIva ?? Number(p.tasaIva) };
+      // Si no se cobra IVA, la tasa de cada partida es 0.
+      return { ...it, tasaIva: body.cobrarIva ? (it.tasaIva ?? Number(p.tasaIva)) : 0 };
     });
 
     const totales = calcularTotales(items);
@@ -229,31 +231,33 @@ ventasRouter.post('/orden/:ordenId', async (req, res, next) => {
     if (!orden) return res.status(404).json({ error: 'Orden no encontrada' });
     if (orden.venta) return res.status(409).json({ error: 'La orden ya tiene una venta' });
 
-    const { forma, monto, refPago } = z.object({
+    const { forma, monto, refPago, cobrarIva } = z.object({
       forma: z.enum(['EFECTIVO', 'TARJETA', 'TRANSFERENCIA', 'CREDITO', 'MIXTO']).default('EFECTIVO'),
       monto: z.coerce.number().min(0).optional(),
       refPago: z.string().optional(),
+      cobrarIva: z.boolean().default(true),
     }).parse(req.body);
 
     // Partidas: una por refaccion consumida + mano de obra (cotizacion) o diagnostico.
     const detalles: any[] = [];
     let subtotal = 0, impuestos = 0;
     for (const c of orden.consumos) {
-      const iva = Number(c.producto.tasaIva) || 16;
+      const iva = cobrarIva ? (Number(c.producto.tasaIva) || 16) : 0;
       const net = Number(c.cantidad) * Number(c.precioUnit);
       const ivaM = r2(net * iva / 100);
       subtotal += net; impuestos += ivaM;
       detalles.push({ productoId: c.productoId, descripcion: c.producto.nombre, cantidad: c.cantidad, precioUnit: c.precioUnit, tasaIva: iva, importe: r2(net + ivaM) });
     }
     const servId = await servicioReparacionId();
+    const tIva = cobrarIva ? 16 : 0;
     const labor = Number(orden.cotizacionTotal);
     const diag = Number(orden.costoDiagnostico);
     if (labor > 0) {
-      const ivaM = r2(labor * 0.16); subtotal += labor; impuestos += ivaM;
-      detalles.push({ productoId: servId, descripcion: `Mano de obra y servicio (orden ${orden.folio})`, cantidad: 1, precioUnit: labor, tasaIva: 16, importe: r2(labor + ivaM) });
+      const ivaM = r2(labor * tIva / 100); subtotal += labor; impuestos += ivaM;
+      detalles.push({ productoId: servId, descripcion: `Mano de obra y servicio (orden ${orden.folio})`, cantidad: 1, precioUnit: labor, tasaIva: tIva, importe: r2(labor + ivaM) });
     } else if (diag > 0) {
-      const ivaM = r2(diag * 0.16); subtotal += diag; impuestos += ivaM;
-      detalles.push({ productoId: servId, descripcion: `Diagnostico (orden ${orden.folio})`, cantidad: 1, precioUnit: diag, tasaIva: 16, importe: r2(diag + ivaM) });
+      const ivaM = r2(diag * tIva / 100); subtotal += diag; impuestos += ivaM;
+      detalles.push({ productoId: servId, descripcion: `Diagnostico (orden ${orden.folio})`, cantidad: 1, precioUnit: diag, tasaIva: tIva, importe: r2(diag + ivaM) });
     }
     subtotal = r2(subtotal); impuestos = r2(impuestos);
     const total = r2(subtotal + impuestos);

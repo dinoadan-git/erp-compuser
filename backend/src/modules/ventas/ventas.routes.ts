@@ -91,11 +91,14 @@ ventasRouter.post('/', async (req, res, next) => {
     // Resolver tasa de IVA faltante desde el producto.
     const productos = await prisma.producto.findMany({ where: { id: { in: body.items.map((i) => i.productoId) } } });
     const mapProd = new Map(productos.map((p) => [p.id, p]));
+    // Regla: el IVA solo es opcional en efectivo; con tarjeta/transferencia/credito es obligatorio.
+    const soloEfectivo = body.pagos.length > 0 && body.pagos.every((p) => p.forma === 'EFECTIVO');
+    const cobrarIva = soloEfectivo ? body.cobrarIva : true;
     const items: Required<Pick<ItemVenta, 'cantidad' | 'precioUnit'>> & any = body.items.map((it) => {
       const p = mapProd.get(it.productoId);
       if (!p) throw new Error(`Producto ${it.productoId} no existe`);
       // Si no se cobra IVA, la tasa de cada partida es 0.
-      return { ...it, tasaIva: body.cobrarIva ? (it.tasaIva ?? Number(p.tasaIva)) : 0 };
+      return { ...it, tasaIva: cobrarIva ? (it.tasaIva ?? Number(p.tasaIva)) : 0 };
     });
 
     const totales = calcularTotales(items);
@@ -231,12 +234,14 @@ ventasRouter.post('/orden/:ordenId', async (req, res, next) => {
     if (!orden) return res.status(404).json({ error: 'Orden no encontrada' });
     if (orden.venta) return res.status(409).json({ error: 'La orden ya tiene una venta' });
 
-    const { forma, monto, refPago, cobrarIva } = z.object({
+    const { forma, monto, refPago, cobrarIva: reqCobrarIva } = z.object({
       forma: z.enum(['EFECTIVO', 'TARJETA', 'TRANSFERENCIA', 'CREDITO', 'MIXTO']).default('EFECTIVO'),
       monto: z.coerce.number().min(0).optional(),
       refPago: z.string().optional(),
       cobrarIva: z.boolean().default(true),
     }).parse(req.body);
+    // El IVA solo es opcional en efectivo; con cualquier otra forma es obligatorio.
+    const cobrarIva = forma === 'EFECTIVO' ? reqCobrarIva : true;
 
     // Partidas: una por refaccion consumida + mano de obra (cotizacion) o diagnostico.
     const detalles: any[] = [];

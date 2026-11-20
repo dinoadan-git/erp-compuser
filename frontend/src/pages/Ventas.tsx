@@ -28,6 +28,8 @@ export default function Ventas() {
     if (id) api.get(`/ordenes/${id}`).then((r) => { setOrdenCobro(r.data); setVista('pos'); }).catch(() => {});
   }, []);
   useEffect(() => { if (q.trim()) api.get('/catalogo/productos', { params: { q } }).then((r) => setProds(r.data)); else setProds([]); }, [q]);
+  // IVA opcional solo en efectivo; con otras formas de pago es obligatorio.
+  useEffect(() => { if (forma !== 'EFECTIVO') setCobrarIva(true); }, [forma]);
 
   const subtotal = carrito.reduce((s, l) => s + l.cantidad * l.precioUnit, 0);
   const iva = cobrarIva ? carrito.reduce((s, l) => s + l.cantidad * l.precioUnit * (l.tasaIva / 100), 0) : 0;
@@ -143,7 +145,7 @@ export default function Ventas() {
             </tbody>
           </table>
           <div className="flex flex-wrap items-end justify-end gap-4 border-t pt-3">
-            <label className="flex items-center gap-2 text-sm mr-auto"><input type="checkbox" checked={cobrarIva} onChange={(e) => setCobrarIva(e.target.checked)} /> Cobrar IVA</label>
+            <label className="flex items-center gap-2 text-sm mr-auto"><input type="checkbox" checked={cobrarIva} disabled={forma !== 'EFECTIVO'} onChange={(e) => setCobrarIva(e.target.checked)} /> Cobrar IVA {forma !== 'EFECTIVO' && <span className="text-xs text-slate-400">(obligatorio en {forma.toLowerCase()})</span>}</label>
             <div className="text-sm text-right">
               <div>Subtotal: ${ordSub.toFixed(2)}</div>
               <div>IVA: ${ordIva.toFixed(2)}</div>
@@ -199,7 +201,7 @@ export default function Ventas() {
           </div>
           <div className="mt-3 border-t pt-3 text-sm space-y-1">
             <div className="flex justify-between"><span>Subtotal</span><span>${subtotal.toFixed(2)}</span></div>
-            <label className="flex items-center justify-between"><span className="flex items-center gap-2"><input type="checkbox" checked={cobrarIva} onChange={(e) => setCobrarIva(e.target.checked)} /> Cobrar IVA</span><span>${iva.toFixed(2)}</span></label>
+            <label className="flex items-center justify-between"><span className="flex items-center gap-2"><input type="checkbox" checked={cobrarIva} disabled={forma !== 'EFECTIVO'} onChange={(e) => setCobrarIva(e.target.checked)} /> Cobrar IVA</span><span>${iva.toFixed(2)}</span></label>
             <div className="flex justify-between font-bold text-lg"><span>Total</span><span>${total.toFixed(2)}</span></div>
             <select value={forma} onChange={(e) => setForma(e.target.value)} className="w-full border rounded px-2 py-1 mt-2">
               <option value="EFECTIVO">Efectivo</option>

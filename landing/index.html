@@ -1,0 +1,368 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Compuservicios · Centro de Servicio Autorizado</title>
+  <meta name="description" content="Centro de Servicio Autorizado EPSON y Canon. Reparación de impresoras, computadoras y laptops, redes y consumibles en Oaxaca. Hacemos que la tecnología funcione para ti." />
+
+  <!-- Fuente de marca: Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+
+  <!-- Tailwind (play CDN) + tokens de marca -->
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
+          colors: {
+            // Paleta tomada del sitio Compuservicios
+            primary: { 50:'#f0f9ff',100:'#e0f2fe',200:'#bae6fd',300:'#7dd3fc',400:'#38bdf8',500:'#0ea5e9',600:'#0284c7',700:'#0369a1',800:'#075985',900:'#0c4a6e' },
+            ink: '#1e293b', muted: '#64748b',
+            // Acentos vibrantes (avatares del sitio + logo)
+            brandgreen:'#22c55e', brandorange:'#f97316', brandred:'#ef4444', brandviolet:'#8b5cf6', brandpink:'#ec4899',
+          },
+          boxShadow: { soft: '0 10px 30px -12px rgba(2,132,199,.18)', card: '0 8px 24px -10px rgba(15,23,42,.15)' },
+          borderRadius: { '2xl': '1rem', '3xl': '1.5rem' },
+        },
+      },
+    };
+  </script>
+  <style>
+    html { scroll-behavior: smooth; }
+    body { background: linear-gradient(180deg, #eff6ff 0%, #f8fafc 22%, #ffffff 100%); }
+    /* Entrada sutil: el contenido es VISIBLE por defecto (completo en reposo).
+       Solo lo que está debajo del pliegue se "arma" por JS y se revela al entrar. */
+    .reveal { opacity: 1; transform: none; }
+    .reveal.armed { opacity: 0; transform: translateY(14px); }
+    .reveal.in { opacity: 1; transform: none; transition: opacity .5s ease, transform .5s ease; }
+    @media (prefers-reduced-motion: reduce) { .reveal.armed { opacity: 1; transform: none; } }
+    .lift { transition: transform .18s ease, box-shadow .18s ease; }
+    .lift:hover { transform: translateY(-4px); }
+  </style>
+</head>
+<body class="font-sans text-ink antialiased">
+
+  <!-- ===================================================================
+       NAVBAR  (reutilizable)
+  ==================================================================== -->
+  <header class="sticky top-0 z-40 backdrop-blur bg-white/80 border-b border-slate-100">
+    <nav class="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
+      <a href="#inicio" class="flex items-center gap-2 shrink-0">
+        <img src="logo-compuservicios.png" alt="Compuservicios" class="h-9 w-auto" />
+      </a>
+      <div class="hidden md:flex items-center gap-8 text-sm font-medium text-muted">
+        <a href="#servicios" class="hover:text-primary-600 transition">Servicios</a>
+        <a href="#nosotros" class="hover:text-primary-600 transition">Nosotros</a>
+        <a href="#proceso" class="hover:text-primary-600 transition">Proceso</a>
+        <a href="#contacto" class="hover:text-primary-600 transition">Contacto</a>
+      </div>
+      <div class="flex items-center gap-3">
+        <a href="#contacto" class="hidden sm:inline-flex items-center gap-2 bg-primary-600 hover:bg-primary-700 text-white text-sm font-semibold px-4 py-2 rounded-xl shadow-soft transition">Solicitar diagnóstico</a>
+        <button id="burger" class="md:hidden p-2 text-ink" aria-label="Menú">
+          <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h16" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+    </nav>
+    <div id="mobileMenu" class="md:hidden hidden border-t border-slate-100 bg-white px-6 py-4 space-y-3 text-sm font-medium">
+      <a href="#servicios" class="block">Servicios</a>
+      <a href="#nosotros" class="block">Nosotros</a>
+      <a href="#proceso" class="block">Proceso</a>
+      <a href="#contacto" class="block">Contacto</a>
+      <a href="#contacto" class="block text-primary-600 font-semibold">Solicitar diagnóstico →</a>
+    </div>
+  </header>
+
+  <!-- ===================================================================
+       HERO  (reutilizable)
+  ==================================================================== -->
+  <section id="inicio" class="relative overflow-hidden">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 pt-14 pb-16 md:pt-24 md:pb-24 grid md:grid-cols-2 gap-12 items-center">
+      <div class="reveal">
+        <span class="inline-flex items-center gap-2 text-xs font-bold tracking-wide uppercase text-primary-700 bg-primary-50 px-3 py-1.5 rounded-full">
+          <span class="w-2 h-2 rounded-full bg-brandgreen"></span> Centro de Servicio Autorizado
+          <span class="text-primary-600">EPSON</span> · <span class="text-brandred">Canon</span>
+        </span>
+        <h1 class="mt-5 text-4xl sm:text-5xl lg:text-6xl font-extrabold leading-[1.05] tracking-tight text-ink text-balance">
+          Hacemos que la <span class="text-primary-600">tecnología</span> funcione para ti
+        </h1>
+        <p class="mt-5 text-lg text-muted max-w-xl">
+          Reparación profesional de impresoras, computadoras y laptops. Diagnóstico honesto, refacciones originales y garantía por escrito. Deja tu equipo en manos de técnicos certificados.
+        </p>
+        <div class="mt-8 flex flex-wrap gap-3">
+          <a href="#contacto" class="inline-flex items-center gap-2 bg-primary-600 hover:bg-primary-700 text-white font-semibold px-6 py-3.5 rounded-xl shadow-soft transition">
+            Agenda tu reparación
+            <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </a>
+          <a href="#servicios" class="inline-flex items-center gap-2 bg-white hover:bg-slate-50 text-ink font-semibold px-6 py-3.5 rounded-xl border border-slate-200 transition">Ver servicios</a>
+        </div>
+        <div class="mt-8 flex items-center gap-6 text-sm text-muted">
+          <div class="flex items-center gap-2"><svg width="18" height="18" fill="none" stroke="#22c55e" stroke-width="2.5"><path d="M4 10l4 4 8-9" stroke-linecap="round" stroke-linejoin="round"/></svg> Garantía por escrito</div>
+          <div class="flex items-center gap-2"><svg width="18" height="18" fill="none" stroke="#22c55e" stroke-width="2.5"><path d="M4 10l4 4 8-9" stroke-linecap="round" stroke-linejoin="round"/></svg> Refacciones originales</div>
+        </div>
+      </div>
+
+      <!-- Visual del hero: composición con tarjetas (SVG/CSS, sin fotos) -->
+      <div class="reveal relative">
+        <div class="absolute -inset-6 bg-gradient-to-tr from-primary-100 to-transparent blur-2xl rounded-full opacity-70"></div>
+        <div class="relative bg-white rounded-3xl shadow-card p-6 sm:p-8">
+          <div class="flex items-center gap-3">
+            <div class="w-12 h-12 rounded-2xl bg-primary-600 text-white grid place-items-center">
+              <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="8" width="16" height="9" rx="2"/><path d="M7 8V5h10v3M7 17v2h10v-2" stroke-linecap="round"/><circle cx="16.5" cy="12" r="1" fill="currentColor"/></svg>
+            </div>
+            <div>
+              <div class="font-bold text-ink">Orden OT-002496</div>
+              <div class="text-xs text-muted">EPSON L3250 · Multifuncional</div>
+            </div>
+            <span class="ml-auto text-xs font-semibold text-primary-700 bg-primary-50 px-2.5 py-1 rounded-full">En reparación</span>
+          </div>
+          <div class="mt-5 space-y-3">
+            <div class="flex items-center gap-3 text-sm"><span class="w-6 h-6 rounded-full bg-brandgreen/15 text-brandgreen grid place-items-center"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 7l3 3 5-6" stroke-linecap="round" stroke-linejoin="round"/></svg></span> Recibido con folio y código QR</div>
+            <div class="flex items-center gap-3 text-sm"><span class="w-6 h-6 rounded-full bg-brandgreen/15 text-brandgreen grid place-items-center"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 7l3 3 5-6" stroke-linecap="round" stroke-linejoin="round"/></svg></span> Diagnóstico y cotización</div>
+            <div class="flex items-center gap-3 text-sm text-muted"><span class="w-6 h-6 rounded-full bg-primary-100 text-primary-600 grid place-items-center animate-pulse"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M7 2v5M7 7l3 2" stroke-linecap="round"/></svg></span> Reparación en curso…</div>
+          </div>
+          <div class="mt-6 grid grid-cols-3 gap-3 text-center">
+            <div class="bg-slate-50 rounded-xl py-3"><div class="text-xl font-extrabold text-primary-600">24h</div><div class="text-[11px] text-muted">Diagnóstico</div></div>
+            <div class="bg-slate-50 rounded-xl py-3"><div class="text-xl font-extrabold text-primary-600">90d</div><div class="text-[11px] text-muted">Garantía</div></div>
+            <div class="bg-slate-50 rounded-xl py-3"><div class="text-xl font-extrabold text-primary-600">+15</div><div class="text-[11px] text-muted">Años</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================================================================
+       SERVICIOS  (reutilizable · grid bento)
+  ==================================================================== -->
+  <section id="servicios" class="max-w-7xl mx-auto px-4 sm:px-6 py-16 md:py-24">
+    <div class="max-w-2xl reveal">
+      <span class="text-sm font-bold uppercase tracking-wide text-primary-600">Qué hacemos</span>
+      <h2 class="mt-2 text-3xl md:text-4xl font-extrabold tracking-tight text-balance">Soluciones para todo tu equipo de tecnología</h2>
+      <p class="mt-3 text-muted">De una impresora atascada a una red completa de oficina. Un solo lugar de confianza.</p>
+    </div>
+
+    <div class="mt-10 grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
+      <!-- Tarjeta de servicio (duplica este bloque para más servicios) -->
+      <article class="reveal lift bg-white rounded-2xl shadow-card p-6">
+        <div class="w-12 h-12 rounded-xl bg-brandorange/12 text-brandorange grid place-items-center">
+          <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="8" width="16" height="9" rx="2"/><path d="M7 8V5h10v3M7 17v2h10v-2" stroke-linecap="round"/></svg>
+        </div>
+        <h3 class="mt-4 font-bold text-lg">Reparación de impresoras</h3>
+        <p class="mt-1.5 text-sm text-muted">Servicio autorizado EPSON y Canon: cabezales, sistemas de tinta, mecanismos y mantenimiento.</p>
+      </article>
+
+      <article class="reveal lift bg-white rounded-2xl shadow-card p-6">
+        <div class="w-12 h-12 rounded-xl bg-primary-100 text-primary-600 grid place-items-center">
+          <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4" stroke-linecap="round"/></svg>
+        </div>
+        <h3 class="mt-4 font-bold text-lg">PC y laptops</h3>
+        <p class="mt-1.5 text-sm text-muted">Diagnóstico, cambio de componentes, limpieza, formateo y recuperación de información.</p>
+      </article>
+
+      <article class="reveal lift bg-white rounded-2xl shadow-card p-6">
+        <div class="w-12 h-12 rounded-xl bg-brandgreen/12 text-brandgreen grid place-items-center">
+          <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v6m0 0a3 3 0 100 6 3 3 0 000-6zM6 21v-3m12 3v-3M4 18h16" stroke-linecap="round"/></svg>
+        </div>
+        <h3 class="mt-4 font-bold text-lg">Consumibles y tintas</h3>
+        <p class="mt-1.5 text-sm text-muted">Venta de tintas, tóner y refacciones originales. Recarga y sistemas de tinta continua.</p>
+      </article>
+
+      <article class="reveal lift bg-white rounded-2xl shadow-card p-6">
+        <div class="w-12 h-12 rounded-xl bg-brandviolet/12 text-brandviolet grid place-items-center">
+          <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="6" r="2"/><circle cx="18" cy="6" r="2"/><circle cx="12" cy="18" r="2"/><path d="M6 8v3a2 2 0 002 2h8a2 2 0 002-2V8M12 13v3" stroke-linecap="round"/></svg>
+        </div>
+        <h3 class="mt-4 font-bold text-lg">Redes e infraestructura</h3>
+        <p class="mt-1.5 text-sm text-muted">Cableado estructurado, WiFi, switches y configuración de redes para hogar y oficina.</p>
+      </article>
+
+      <article class="reveal lift bg-white rounded-2xl shadow-card p-6">
+        <div class="w-12 h-12 rounded-xl bg-brandpink/12 text-brandpink grid place-items-center">
+          <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l7 3v5c0 4-3 7-7 9-4-2-7-5-7-9V6l7-3z" stroke-linejoin="round"/><path d="M9 12l2 2 4-4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <h3 class="mt-4 font-bold text-lg">Mantenimiento preventivo</h3>
+        <p class="mt-1.5 text-sm text-muted">Pólizas y planes de mantenimiento programado para mantener tus equipos al 100%.</p>
+      </article>
+
+      <article class="reveal lift bg-white rounded-2xl shadow-card p-6">
+        <div class="w-12 h-12 rounded-xl bg-brandred/12 text-brandred grid place-items-center">
+          <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3a9 9 0 00-9 9v4a2 2 0 002 2h2v-6H5a7 7 0 0114 0h-2v6h2a2 2 0 002-2v-4a9 9 0 00-9-9z" stroke-linejoin="round"/></svg>
+        </div>
+        <h3 class="mt-4 font-bold text-lg">Soporte y diagnóstico</h3>
+        <p class="mt-1.5 text-sm text-muted">Revisión técnica detallada con reporte y presupuesto antes de cualquier reparación.</p>
+      </article>
+    </div>
+  </section>
+
+  <!-- ===================================================================
+       NOSOTROS / STATS  (reutilizable)
+  ==================================================================== -->
+  <section id="nosotros" class="bg-primary-600 text-white">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 py-16 md:py-20 grid lg:grid-cols-2 gap-12 items-center">
+      <div class="reveal">
+        <span class="text-sm font-bold uppercase tracking-wide text-primary-100">Por qué Compuservicios</span>
+        <h2 class="mt-2 text-3xl md:text-4xl font-extrabold tracking-tight text-balance">Técnicos certificados y trato honesto</h2>
+        <p class="mt-4 text-primary-50/90 max-w-lg">Somos un centro de servicio autorizado con más de 15 años reparando la tecnología de hogares y empresas. Te decimos la verdad sobre tu equipo y respaldamos cada trabajo por escrito.</p>
+        <ul class="mt-6 space-y-3">
+          <li class="flex items-start gap-3"><span class="mt-0.5 w-5 h-5 rounded-full bg-white/20 grid place-items-center"><svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="3"><path d="M2 6l3 3 5-6" stroke-linecap="round" stroke-linejoin="round"/></svg></span> Servicio autorizado EPSON y Canon</li>
+          <li class="flex items-start gap-3"><span class="mt-0.5 w-5 h-5 rounded-full bg-white/20 grid place-items-center"><svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="3"><path d="M2 6l3 3 5-6" stroke-linecap="round" stroke-linejoin="round"/></svg></span> Seguimiento de tu equipo en línea por folio</li>
+          <li class="flex items-start gap-3"><span class="mt-0.5 w-5 h-5 rounded-full bg-white/20 grid place-items-center"><svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="3"><path d="M2 6l3 3 5-6" stroke-linecap="round" stroke-linejoin="round"/></svg></span> Refacciones originales y garantía</li>
+        </ul>
+      </div>
+      <div class="reveal grid grid-cols-2 gap-4">
+        <div class="bg-white/10 rounded-2xl p-6 backdrop-blur"><div class="text-4xl font-extrabold">+15</div><div class="mt-1 text-primary-100 text-sm">Años de experiencia</div></div>
+        <div class="bg-white/10 rounded-2xl p-6 backdrop-blur"><div class="text-4xl font-extrabold">12k+</div><div class="mt-1 text-primary-100 text-sm">Equipos reparados</div></div>
+        <div class="bg-white/10 rounded-2xl p-6 backdrop-blur"><div class="text-4xl font-extrabold">98%</div><div class="mt-1 text-primary-100 text-sm">Clientes satisfechos</div></div>
+        <div class="bg-white/10 rounded-2xl p-6 backdrop-blur"><div class="text-4xl font-extrabold">90</div><div class="mt-1 text-primary-100 text-sm">Días de garantía</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================================================================
+       PROCESO  (reutilizable · 4 pasos)
+  ==================================================================== -->
+  <section id="proceso" class="max-w-7xl mx-auto px-4 sm:px-6 py-16 md:py-24">
+    <div class="max-w-2xl reveal">
+      <span class="text-sm font-bold uppercase tracking-wide text-primary-600">Cómo trabajamos</span>
+      <h2 class="mt-2 text-3xl md:text-4xl font-extrabold tracking-tight text-balance">Tu equipo, con trazabilidad total</h2>
+      <p class="mt-3 text-muted">Desde que lo recibes hasta que lo entregamos, sabes exactamente en qué va.</p>
+    </div>
+    <div class="mt-10 grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
+      <div class="reveal relative bg-white rounded-2xl shadow-card p-6">
+        <div class="text-5xl font-extrabold text-primary-100">01</div>
+        <h3 class="mt-2 font-bold">Recepción</h3>
+        <p class="mt-1.5 text-sm text-muted">Registramos tu equipo con folio y código QR. Recibes tu comprobante.</p>
+      </div>
+      <div class="reveal relative bg-white rounded-2xl shadow-card p-6">
+        <div class="text-5xl font-extrabold text-primary-100">02</div>
+        <h3 class="mt-2 font-bold">Diagnóstico</h3>
+        <p class="mt-1.5 text-sm text-muted">Revisión técnica y cotización clara, sin sorpresas.</p>
+      </div>
+      <div class="reveal relative bg-white rounded-2xl shadow-card p-6">
+        <div class="text-5xl font-extrabold text-primary-100">03</div>
+        <h3 class="mt-2 font-bold">Autorización</h3>
+        <p class="mt-1.5 text-sm text-muted">Tú apruebas el presupuesto por WhatsApp o en línea y reparamos.</p>
+      </div>
+      <div class="reveal relative bg-white rounded-2xl shadow-card p-6">
+        <div class="text-5xl font-extrabold text-primary-100">04</div>
+        <h3 class="mt-2 font-bold">Entrega</h3>
+        <p class="mt-1.5 text-sm text-muted">Pruebas de calidad, entrega con garantía y tu equipo funcionando.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================================================================
+       TESTIMONIOS  (reutilizable)
+  ==================================================================== -->
+  <section class="bg-slate-50">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 py-16 md:py-24">
+      <div class="max-w-2xl reveal">
+        <span class="text-sm font-bold uppercase tracking-wide text-primary-600">Clientes</span>
+        <h2 class="mt-2 text-3xl md:text-4xl font-extrabold tracking-tight text-balance">Nos recomiendan por una razón</h2>
+      </div>
+      <div class="mt-10 grid md:grid-cols-3 gap-5">
+        <figure class="reveal bg-white rounded-2xl shadow-card p-6">
+          <div class="flex gap-1 text-brandorange">★★★★★</div>
+          <blockquote class="mt-3 text-sm text-ink">"Me rescataron la impresora de la oficina el mismo día. Honestos y rápidos."</blockquote>
+          <figcaption class="mt-4 flex items-center gap-3"><span class="w-9 h-9 rounded-full bg-brandred text-white grid place-items-center font-bold text-sm">JP</span><div><div class="text-sm font-semibold">José Parada</div><div class="text-xs text-muted">Papelería La Oaxaqueña</div></div></figcaption>
+        </figure>
+        <figure class="reveal bg-white rounded-2xl shadow-card p-6">
+          <div class="flex gap-1 text-brandorange">★★★★★</div>
+          <blockquote class="mt-3 text-sm text-ink">"Pude seguir el estatus de mi laptop en línea con el folio. Excelente servicio."</blockquote>
+          <figcaption class="mt-4 flex items-center gap-3"><span class="w-9 h-9 rounded-full bg-primary-600 text-white grid place-items-center font-bold text-sm">MR</span><div><div class="text-sm font-semibold">María Ruiz</div><div class="text-xs text-muted">Cliente</div></div></figcaption>
+        </figure>
+        <figure class="reveal bg-white rounded-2xl shadow-card p-6">
+          <div class="flex gap-1 text-brandorange">★★★★★</div>
+          <blockquote class="mt-3 text-sm text-ink">"Instalaron la red de toda la empresa y nos dieron póliza de mantenimiento."</blockquote>
+          <figcaption class="mt-4 flex items-center gap-3"><span class="w-9 h-9 rounded-full bg-brandgreen text-white grid place-items-center font-bold text-sm">EV</span><div><div class="text-sm font-semibold">Edilberto V.</div><div class="text-xs text-muted">Empresa local</div></div></figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================================================================
+       CTA  (reutilizable)
+  ==================================================================== -->
+  <section class="max-w-7xl mx-auto px-4 sm:px-6 py-16">
+    <div class="reveal relative overflow-hidden rounded-3xl bg-gradient-to-r from-primary-700 to-primary-500 text-white px-8 py-12 md:px-14 md:py-16 text-center">
+      <h2 class="text-3xl md:text-4xl font-extrabold tracking-tight text-balance">¿Tu equipo falla? Tráelo con nosotros.</h2>
+      <p class="mt-3 text-primary-50/90 max-w-xl mx-auto">Diagnóstico profesional y presupuesto sin compromiso. Te decimos la verdad sobre tu equipo.</p>
+      <div class="mt-7 flex flex-wrap gap-3 justify-center">
+        <a href="#contacto" class="inline-flex items-center gap-2 bg-white text-primary-700 font-semibold px-6 py-3.5 rounded-xl shadow-soft hover:bg-primary-50 transition">Agenda tu reparación</a>
+        <a href="https://wa.me/5219516463845" class="inline-flex items-center gap-2 bg-brandgreen text-white font-semibold px-6 py-3.5 rounded-xl hover:brightness-110 transition">WhatsApp</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================================================================
+       CONTACTO + FOOTER  (reutilizable)
+  ==================================================================== -->
+  <footer id="contacto" class="border-t border-slate-100 bg-white">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 py-14 grid md:grid-cols-4 gap-10">
+      <div class="md:col-span-2">
+        <img src="logo-compuservicios.png" alt="Compuservicios" class="h-10 w-auto" />
+        <p class="mt-4 text-sm text-muted max-w-sm">Centro de Servicio Autorizado EPSON y Canon. Hacemos que la tecnología funcione para ti.</p>
+        <div class="mt-5 flex gap-3">
+          <a href="https://wa.me/5219516463845" class="w-10 h-10 rounded-xl bg-brandgreen/10 text-brandgreen grid place-items-center hover:bg-brandgreen/20 transition" aria-label="WhatsApp">
+            <svg width="20" height="20" fill="currentColor"><path d="M10 2a8 8 0 00-6.9 12l-1 3.6 3.7-1A8 8 0 1010 2zm0 1.5a6.5 6.5 0 015.5 10l.6 2.2-2.3-.6A6.5 6.5 0 1110 3.5zm3.6 8.1c-.2-.1-1.2-.6-1.4-.6-.2-.1-.3-.1-.4.1l-.6.7c-.1.1-.2.1-.4 0a5.3 5.3 0 01-2.6-2.3c-.2-.3.2-.3.5-.9.1-.1 0-.3 0-.4l-.6-1.4c-.1-.3-.3-.3-.4-.3h-.4a.8.8 0 00-.6.3c-.2.2-.7.7-.7 1.7s.8 2 .9 2.1c.1.1 1.5 2.4 3.7 3.3 1.4.6 1.9.6 2.6.5.4 0 1.2-.5 1.4-1 .2-.5.2-.9.1-1z"/></svg>
+          </a>
+        </div>
+      </div>
+      <div>
+        <h4 class="text-sm font-bold text-ink">Contacto</h4>
+        <ul class="mt-3 space-y-2 text-sm text-muted">
+          <li>Tel: <a href="tel:9511672703" class="hover:text-primary-600">951 167 2703</a></li>
+          <li>WhatsApp: <a href="https://wa.me/5219516463845" class="hover:text-primary-600">951 646 3845</a></li>
+          <li>Oaxaca de Juárez, Oax.</li>
+          <li>Lun–Vie 9:00–19:00 · Sáb 9:00–14:00</li>
+        </ul>
+      </div>
+      <div>
+        <h4 class="text-sm font-bold text-ink">Tu equipo</h4>
+        <ul class="mt-3 space-y-2 text-sm text-muted">
+          <li><a href="#servicios" class="hover:text-primary-600">Servicios</a></li>
+          <li><a href="#proceso" class="hover:text-primary-600">Cómo trabajamos</a></li>
+          <li><a href="#" class="hover:text-primary-600">Consulta el estatus por folio →</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="border-t border-slate-100">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 py-5 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-muted">
+        <span>© <span id="year"></span> Compuservicios · Centro de Servicio Autorizado EPSON / Canon</span>
+        <span>Hacemos que la tecnología funcione para ti.</span>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Botón flotante de WhatsApp (reutilizable) -->
+  <a href="https://wa.me/5219516463845" class="fixed bottom-5 right-5 z-40 w-14 h-14 rounded-full bg-brandgreen text-white grid place-items-center shadow-lg hover:scale-105 transition" aria-label="WhatsApp">
+    <svg width="28" height="28" fill="currentColor"><path d="M14 3a11 11 0 00-9.4 16.6L3 25l5.6-1.5A11 11 0 1014 3zm0 2a9 9 0 11-4.6 16.7l-.4-.2-3.3.9.9-3.2-.2-.4A9 9 0 0114 5z"/><path d="M19 16.3c-.3-.1-1.7-.8-1.9-.9-.3-.1-.5-.1-.6.2l-.8.9c-.1.2-.3.2-.5.1a7.3 7.3 0 01-3.6-3.2c-.2-.4.2-.4.6-1.2.1-.2 0-.4 0-.5l-.9-2c-.2-.5-.4-.4-.6-.4h-.5a1 1 0 00-.8.4c-.3.3-1 1-1 2.4s1 2.8 1.2 3 2 3.3 5 4.5c1.9.8 2.6.8 3.5.7.6 0 1.7-.7 1.9-1.4.2-.6.2-1.2.2-1.3z"/></svg>
+  </a>
+
+  <!-- Animaciones: revelado al hacer scroll + menú móvil -->
+  <script>
+    (function () {
+      document.getElementById('year').textContent = new Date().getFullYear();
+      // Menú móvil
+      var b = document.getElementById('burger'), m = document.getElementById('mobileMenu');
+      if (b && m) { b.addEventListener('click', function () { m.classList.toggle('hidden'); }); m.querySelectorAll('a').forEach(function(a){a.addEventListener('click',function(){m.classList.add('hidden');});}); }
+      // Revelado sutil al hacer scroll (respeta reduce-motion). El contenido
+      // es visible por defecto; solo armamos lo que está debajo del pliegue.
+      var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      if (reduce || !('IntersectionObserver' in window)) return;
+      var vh = window.innerHeight;
+      document.querySelectorAll('.reveal').forEach(function (e) {
+        if (e.getBoundingClientRect().top > vh * 0.9) e.classList.add('armed');
+      });
+      var io = new IntersectionObserver(function (entries) {
+        entries.forEach(function (en) { if (en.isIntersecting) { en.target.classList.remove('armed'); en.target.classList.add('in'); io.unobserve(en.target); } });
+      }, { threshold: 0.12 });
+      document.querySelectorAll('.reveal.armed').forEach(function (e) { io.observe(e); });
+      // Seguridad: nada queda oculto más de 2s aunque no haya scroll.
+      setTimeout(function () { document.querySelectorAll('.reveal.armed').forEach(function (e) { e.classList.remove('armed'); e.classList.add('in'); }); }, 2000);
+    })();
+  </script>
+</body>
+</html>

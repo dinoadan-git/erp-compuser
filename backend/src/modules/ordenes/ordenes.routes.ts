@@ -40,7 +40,14 @@ ordenesRouter.get('/tecnicos', async (_req, res, next) => {
       select: { id: true, nombre: true },
       orderBy: { nombre: 'asc' },
     });
-    res.json(tecnicos);
+    // Tickets activos asignados a cada tecnico (para el selector "Tecnico asignado").
+    const counts = await prisma.ordenTrabajo.groupBy({
+      by: ['tecnicoId'],
+      where: { estatus: { notIn: ['ENTREGADO', 'CANCELADO', 'ABANDONO'] }, tecnicoId: { not: null } },
+      _count: { _all: true },
+    });
+    const map = new Map(counts.map((c) => [c.tecnicoId, c._count._all]));
+    res.json(tecnicos.map((t) => ({ ...t, ticketsActivos: map.get(t.id) ?? 0 })));
   } catch (e) { next(e); }
 });
 
@@ -68,6 +75,7 @@ const recepcionSchema = z.object({
   accesorios: z.string().optional(),
   tipoGarantia: z.enum(['NINGUNA', 'EPSON', 'TALLER']).default('NINGUNA'),
   tecnicoId: z.coerce.number().optional(),
+  recibidoPorId: z.coerce.number().optional(),
   prometidaEn: z.coerce.date().optional(),
 });
 
@@ -113,6 +121,7 @@ ordenesRouter.get('/:id', async (req, res, next) => {
       where: { id: Number(req.params.id) },
       include: {
         cliente: true, equipo: true, tecnico: { select: { id: true, nombre: true } },
+        recibidoPor: { select: { id: true, nombre: true } },
         bitacora: { orderBy: { creadoEn: 'desc' }, include: { usuario: { select: { nombre: true } } } },
         consumos: { include: { producto: true } },
         venta: { include: { pagos: true } },

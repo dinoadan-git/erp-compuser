@@ -209,7 +209,7 @@ function dibujarComprobante(doc: jsPDF, yTop: number, copia: string, orden: any,
   const dx = M + boxW + 5;
   grisLbl('Recibe:', dx, y);
   doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(sky[0], sky[1], sky[2]);
-  doc.text((orden.tecnico?.nombre || '').toUpperCase(), R, y, { align: 'right' });
+  doc.text(((orden.recibidoPor?.nombre || orden.tecnico?.nombre) || '').toUpperCase(), R, y, { align: 'right' });
   // costo revision + sello
   const cy = obsY + 4;
   doc.setFillColor(235, 242, 252); doc.rect(dx, cy, boxW, 9, 'F');
@@ -323,4 +323,38 @@ export function generarTicketVenta(venta: any, empresa?: any) {
   center(`WhatsApp: ${MARCA.whatsapp}`, y);
 
   doc.save(`${venta.folio || 'ticket'}.pdf`);
+}
+
+// Dibuja una pagina (dos copias) del comprobante de una orden en el doc dado.
+async function paginaComprobante(doc: jsPDF, orden: any, empresa: any, baseUrl: string) {
+  const origin = baseUrl || (typeof window !== 'undefined' ? window.location.origin : '');
+  const url = `${origin}/portal?token=${orden.qrToken || ''}`;
+  let qrData = '';
+  try { qrData = await QRCode.toDataURL(url, { margin: 1, width: 240 }); } catch { /* sin QR */ }
+  const W = doc.internal.pageSize.getWidth();
+  dibujarComprobante(doc, 10, 'CLIENTE', orden, empresa, qrData);
+  const yCorte = 143;
+  doc.setLineDashPattern([2, 1.5], 0); doc.setDrawColor(150); doc.line(10, yCorte, W - 10, yCorte);
+  doc.setLineDashPattern([], 0);
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(7); doc.setTextColor(150, 150, 150);
+  doc.text('--- CORTE AQUI ---', W / 2, yCorte - 1, { align: 'center' });
+  dibujarComprobante(doc, 150, 'EMPRESA', orden, empresa, qrData);
+}
+
+// Genera un solo PDF con el comprobante de una o varias ordenes (una por pagina)
+// y lo manda a impresion directa (abre el dialogo de la impresora predeterminada).
+export async function imprimirComprobantesRecepcion(ordenes: any[], empresa?: any, baseUrl?: string) {
+  const doc = new jsPDF({ unit: 'mm', format: 'letter' });
+  for (let i = 0; i < ordenes.length; i++) {
+    if (i > 0) doc.addPage();
+    await paginaComprobante(doc, ordenes[i], empresa, baseUrl || '');
+  }
+  try {
+    doc.autoPrint();
+    const url = doc.output('bloburl');
+    const w = window.open(url, '_blank');
+    if (!w) doc.save(`comprobantes-${Date.now()}.pdf`); // si el navegador bloquea el popup, descarga
+  } catch {
+    doc.save(`comprobantes-${Date.now()}.pdf`);
+  }
 }

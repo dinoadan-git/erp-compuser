@@ -149,6 +149,7 @@ model Usuario {
   actualizadoEn DateTime     @updatedAt
 
   ordenesAsignadas OrdenTrabajo[]  @relation("TecnicoOrden")
+  ordenesRecibidas OrdenTrabajo[]  @relation("RecibeOrden")
   bitacoras        BitacoraOrden[]
   movimientos      MovimientoInventario[]
   ventas           Venta[]
@@ -188,6 +189,8 @@ model Cliente {
   tipo          TipoCliente   @default(MOSTRADOR)
   personaFiscal PersonaFiscal @default(FISICA)
   nombre        String
+  telefono      String?
+  email         String?
   rfc           String?
   regimenFiscal String?
   usoCfdi       String?
@@ -511,6 +514,8 @@ model OrdenTrabajo {
   equipo        Equipo       @relation(fields: [equipoId], references: [id])
   tecnicoId     Int?
   tecnico       Usuario?     @relation("TecnicoOrden", fields: [tecnicoId], references: [id])
+  recibidoPorId Int?
+  recibidoPor   Usuario?     @relation("RecibeOrden", fields: [recibidoPorId], references: [id])
 
   estatus       EstatusOrden @default(RECIBIDO)
   tipoGarantia  TipoGarantia @default(NINGUNA)

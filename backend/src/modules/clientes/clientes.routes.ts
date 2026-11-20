@@ -10,6 +10,8 @@ const clienteSchema = z.object({
   tipo: z.enum(['MOSTRADOR', 'EMPRESA', 'GARANTIA_EPSON']).default('MOSTRADOR'),
   personaFiscal: z.enum(['FISICA', 'MORAL']).default('FISICA'),
   nombre: z.string().min(1),
+  telefono: z.string().optional(),
+  email: z.string().optional(),
   rfc: z.string().optional(),
   regimenFiscal: z.string().optional(),
   usoCfdi: z.string().optional(),
@@ -22,7 +24,12 @@ clientesRouter.get('/', async (req, res, next) => {
   try {
     const q = (req.query.q as string | undefined)?.trim();
     const clientes = await prisma.cliente.findMany({
-      where: q ? { OR: [{ nombre: { contains: q, mode: 'insensitive' } }, { rfc: { contains: q, mode: 'insensitive' } }] } : undefined,
+      where: q ? { OR: [
+        { nombre: { contains: q, mode: 'insensitive' } },
+        { rfc: { contains: q, mode: 'insensitive' } },
+        { telefono: { contains: q } },
+        { email: { contains: q, mode: 'insensitive' } },
+      ] } : undefined,
       orderBy: { nombre: 'asc' },
       take: 100,
     });

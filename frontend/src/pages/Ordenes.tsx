@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
-import { generarOrdenPdf, generarComprobanteRecepcion } from '../lib/ordenPdf';
+import { generarOrdenPdf, generarComprobanteRecepcion, imprimirComprobantesRecepcion } from '../lib/ordenPdf';
 
 const ESTATUS_LABEL: Record<string, string> = {
   RECIBIDO: 'Recibido', EN_DIAGNOSTICO: 'En diagnostico', ESPERANDO_AUTORIZACION: 'Esperando autorizacion',
@@ -14,65 +14,95 @@ const ESTATUS_LABEL: Record<string, string> = {
 const ESTATUS = Object.keys(ESTATUS_LABEL);
 const TIPOS_EQUIPO = ['Impresora', 'Multifuncional', 'Laptop', 'Computadora de Escritorio', 'Proyector', 'Otro'];
 
+const ITEM_VACIO = () => ({ equipoId: '', nuevo: false, eqTipo: 'Impresora', eqMarca: '', eqModelo: '', eqSerie: '', falla: '', estadoFisico: '', tipoGarantia: 'NINGUNA' });
+
 export default function Ordenes() {
   const { user } = useAuth();
   const [ordenes, setOrdenes] = useState<any[]>([]);
   const [clientes, setClientes] = useState<any[]>([]);
   const [tecnicos, setTecnicos] = useState<any[]>([]);
-  const [equipos, setEquipos] = useState<any[]>([]);
+  const [equiposCliente, setEquiposCliente] = useState<any[]>([]);
+  const [empresa, setEmpresa] = useState<any>(null);
   const [showForm, setShowForm] = useState(false);
   const [detalle, setDetalle] = useState<any>(null);
   const [msg, setMsg] = useState('');
+  const [guardando, setGuardando] = useState(false);
 
-  const vacio = {
-    clienteId: '', nuevoCliente: false, clienteNombre: '', clienteTipo: 'MOSTRADOR',
-    equipoId: '', nuevoEquipo: true, eqTipo: 'Impresora', eqMarca: '', eqModelo: '', eqSerie: '',
-    falla: '', estadoFisico: '', tipoGarantia: 'NINGUNA', tecnicoId: '',
-  };
-  const [f, setF] = useState<any>(vacio);
+  // Cliente (una vez) + recibe/tecnico (para todo el lote)
+  const [cli, setCli] = useState<any>({ clienteId: '', nuevoCliente: false, clienteNombre: '', clienteTel: '', clienteTipo: 'MOSTRADOR' });
+  const [recibidoPorId, setRecibidoPorId] = useState('');
+  const [tecnicoId, setTecnicoId] = useState('');
+  // Varios equipos -> una orden por cada uno
+  const [items, setItems] = useState<any[]>([ITEM_VACIO()]);
 
   const cargar = () => api.get('/ordenes').then((r) => setOrdenes(r.data)).catch(() => {});
+  const cargarTecnicos = () => api.get('/ordenes/tecnicos').then((r) => setTecnicos(r.data)).catch(() => {});
   useEffect(() => {
-    cargar();
+    cargar(); cargarTecnicos();
     api.get('/clientes').then((r) => setClientes(r.data)).catch(() => {});
-    api.get('/ordenes/tecnicos').then((r) => setTecnicos(r.data)).catch(() => {});
+    api.get('/config/empresa').then((r) => setEmpresa(r.data)).catch(() => {});
   }, []);
 
+  // Al elegir cliente existente, cargar SUS equipos (relación cliente→equipos).
   useEffect(() => {
-    if (f.clienteId && !f.nuevoCliente) {
-      api.get(`/clientes/${f.clienteId}`).then((r) => {
-        setEquipos(r.data.equipos || []);
-        setF((p: any) => ({ ...p, nuevoEquipo: (r.data.equipos || []).length === 0 }));
-      }).catch(() => setEquipos([]));
-    } else { setEquipos([]); }
+    if (cli.clienteId && !cli.nuevoCliente) {
+      api.get(`/clientes/${cli.clienteId}`).then((r) => {
+        const eqs = r.data.equipos || [];
+        setEquiposCliente(eqs);
+        // Si el cliente no tiene equipos, el primer item arranca como nuevo.
+        setItems((its) => its.map((it) => ({ ...it, nuevo: eqs.length === 0 ? true : it.nuevo })));
+      }).catch(() => setEquiposCliente([]));
+    } else { setEquiposCliente([]); setItems((its) => its.map((it) => ({ ...it, nuevo: cli.nuevoCliente ? true : it.nuevo }))); }
     // eslint-disable-next-line
-  }, [f.clienteId, f.nuevoCliente]);
+  }, [cli.clienteId, cli.nuevoCliente]);
 
   const abrir = (id: number) => api.get(`/ordenes/${id}`).then((r) => { setDetalle(r.data); setMsg(''); }).catch(() => {});
+  const setItem = (i: number, patch: any) => setItems((its) => its.map((it, idx) => idx === i ? { ...it, ...patch } : it));
+  function resetForm() { setCli({ clienteId: '', nuevoCliente: false, clienteNombre: '', clienteTel: '', clienteTipo: 'MOSTRADOR' }); setRecibidoPorId(''); setTecnicoId(''); setItems([ITEM_VACIO()]); }
 
   async function guardar() {
+    if (guardando) return;
+    setGuardando(true);
     try {
-      let clienteId = Number(f.clienteId);
-      if (f.nuevoCliente) {
-        if (!f.clienteNombre.trim()) { setMsg('Escribe el nombre del cliente'); return; }
-        const { data } = await api.post('/clientes', { nombre: f.clienteNombre, tipo: f.clienteTipo });
+      let clienteId = Number(cli.clienteId);
+      if (cli.nuevoCliente) {
+        if (!cli.clienteNombre.trim()) { setMsg('Escribe el nombre del cliente'); setGuardando(false); return; }
+        const { data } = await api.post('/clientes', { nombre: cli.clienteNombre, tipo: cli.clienteTipo, telefono: cli.clienteTel || undefined });
         clienteId = data.id;
       }
-      if (!clienteId) { setMsg('Selecciona o crea un cliente'); return; }
-      let equipoId = Number(f.equipoId);
-      if (f.nuevoEquipo || !equipoId) {
-        const { data } = await api.post('/equipos', { clienteId, tipo: f.eqTipo, marca: f.eqMarca || undefined, modelo: f.eqModelo || undefined, numeroSerie: f.eqSerie || undefined });
-        equipoId = data.id;
+      if (!clienteId) { setMsg('Selecciona o crea un cliente'); setGuardando(false); return; }
+
+      const creadas: any[] = [];
+      for (const it of items) {
+        if (!it.falla.trim()) { setMsg('Cada equipo necesita su falla reportada'); setGuardando(false); return; }
+        let equipoId = Number(it.equipoId);
+        if (it.nuevo || !equipoId) {
+          const { data } = await api.post('/equipos', { clienteId, tipo: it.eqTipo, marca: it.eqMarca || undefined, modelo: it.eqModelo || undefined, numeroSerie: it.eqSerie || undefined });
+          equipoId = data.id;
+        }
+        const { data: orden } = await api.post('/ordenes', {
+          clienteId, equipoId, fallaReportada: it.falla, estadoFisico: it.estadoFisico || undefined, tipoGarantia: it.tipoGarantia,
+          tecnicoId: tecnicoId ? Number(tecnicoId) : undefined, recibidoPorId: recibidoPorId ? Number(recibidoPorId) : undefined,
+        });
+        creadas.push(orden);
       }
-      if (!f.falla.trim()) { setMsg('Describe la falla reportada'); return; }
-      const { data: orden } = await api.post('/ordenes', { clienteId, equipoId, fallaReportada: f.falla, estadoFisico: f.estadoFisico || undefined, tipoGarantia: f.tipoGarantia, tecnicoId: f.tecnicoId ? Number(f.tecnicoId) : undefined });
-      setMsg(`Orden ${orden.folio} creada`); setF(vacio); setShowForm(false); cargar();
+      setMsg(`${creadas.length} orden(es) creada(s): ${creadas.map((o) => o.folio).join(', ')}`);
+      // Traer el detalle completo (cliente, equipo, recibe, tecnico) e imprimir.
+      try {
+        const full = await Promise.all(creadas.map((o) => api.get(`/ordenes/${o.id}`).then((r) => r.data)));
+        await imprimirComprobantesRecepcion(full, empresa);
+      } catch { /* si falla la impresion, la orden ya quedo creada */ }
+      setShowForm(false); resetForm(); cargar(); cargarTecnicos();
       api.get('/clientes').then((r) => setClientes(r.data));
-    } catch (e: any) { setMsg(e?.response?.data?.error ?? 'Error al crear la orden'); }
+    } catch (e: any) {
+      setMsg(e?.response?.data?.error ?? 'Error al crear la orden');
+    } finally { setGuardando(false); }
   }
 
   // ---- Vista de detalle ----
   if (detalle) return <Detalle orden={detalle} tecnicos={tecnicos} user={user} onBack={() => { setDetalle(null); cargar(); }} onReload={() => abrir(detalle.id)} />;
+
+  const tecOpt = (t: any) => `${t.nombre}${t.ticketsActivos != null ? ` · ${t.ticketsActivos} tickets` : ''}`;
 
   return (
     <div>
@@ -83,47 +113,87 @@ export default function Ordenes() {
       {msg && <div className="mb-4 p-3 bg-primary-50 text-primary-800 rounded text-sm">{msg}</div>}
 
       {showForm && (
-        <div className="bg-white rounded-xl shadow p-5 mb-6">
-          <h2 className="font-semibold mb-3">Recepcion de equipo</h2>
-          <div className="grid md:grid-cols-2 gap-5 text-sm">
-            <div>
+        <div className="bg-white rounded-xl shadow p-5 mb-6 text-sm">
+          <h2 className="font-semibold mb-3">Recepción de equipos</h2>
+
+          {/* CLIENTE (una sola vez) */}
+          <div className="grid md:grid-cols-3 gap-4 pb-4 border-b">
+            <div className="md:col-span-2">
               <div className="font-medium mb-1">Cliente</div>
-              {!f.nuevoCliente ? (<>
-                <select value={f.clienteId} onChange={(e) => setF({ ...f, clienteId: e.target.value, equipoId: '' })} className="w-full border rounded px-2 py-1">
+              {!cli.nuevoCliente ? (<>
+                <select value={cli.clienteId} onChange={(e) => setCli({ ...cli, clienteId: e.target.value })} className="w-full border rounded px-2 py-1">
                   <option value="">Selecciona un cliente...</option>
-                  {clientes.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                  {clientes.map((c) => <option key={c.id} value={c.id}>{c.nombre}{c.telefono ? ` · ${c.telefono}` : ''}</option>)}
                 </select>
-                <button onClick={() => setF({ ...f, nuevoCliente: true, clienteId: '' })} className="text-primary-600 text-xs mt-1">+ Cliente nuevo</button>
-              </>) : (<div className="space-y-1">
-                <input className="w-full border rounded px-2 py-1" placeholder="Nombre del cliente" value={f.clienteNombre} onChange={(e) => setF({ ...f, clienteNombre: e.target.value })} />
-                <select value={f.clienteTipo} onChange={(e) => setF({ ...f, clienteTipo: e.target.value })} className="w-full border rounded px-2 py-1"><option value="MOSTRADOR">Mostrador</option><option value="EMPRESA">Empresa</option><option value="GARANTIA_EPSON">Garantia EPSON</option></select>
-                <button onClick={() => setF({ ...f, nuevoCliente: false })} className="text-slate-500 text-xs">usar cliente existente</button>
+                <button onClick={() => setCli({ ...cli, nuevoCliente: true, clienteId: '' })} className="text-primary-600 text-xs mt-1">+ Cliente nuevo</button>
+              </>) : (<div className="grid grid-cols-2 gap-2">
+                <input className="border rounded px-2 py-1" placeholder="Nombre del cliente" value={cli.clienteNombre} onChange={(e) => setCli({ ...cli, clienteNombre: e.target.value })} />
+                <input className="border rounded px-2 py-1" placeholder="Teléfono" value={cli.clienteTel} onChange={(e) => setCli({ ...cli, clienteTel: e.target.value })} />
+                <select value={cli.clienteTipo} onChange={(e) => setCli({ ...cli, clienteTipo: e.target.value })} className="border rounded px-2 py-1 col-span-2"><option value="MOSTRADOR">Mostrador</option><option value="EMPRESA">Empresa</option><option value="GARANTIA_EPSON">Garantía EPSON</option></select>
+                <button onClick={() => setCli({ ...cli, nuevoCliente: false })} className="text-slate-500 text-xs col-span-2 text-left">usar cliente existente</button>
               </div>)}
             </div>
-            <div>
-              <div className="font-medium mb-1">Equipo</div>
-              {!f.nuevoEquipo && equipos.length > 0 ? (<>
-                <select value={f.equipoId} onChange={(e) => setF({ ...f, equipoId: e.target.value })} className="w-full border rounded px-2 py-1">
-                  <option value="">Selecciona un equipo...</option>
-                  {equipos.map((eq) => <option key={eq.id} value={eq.id}>{eq.tipo} {eq.marca} {eq.modelo} ({eq.numeroSerie || 's/n'})</option>)}
+            <div className="grid grid-cols-1 gap-2">
+              <div>
+                <div className="font-medium mb-1">Recibe</div>
+                <select value={recibidoPorId} onChange={(e) => setRecibidoPorId(e.target.value)} className="w-full border rounded px-2 py-1">
+                  <option value="">Selecciona técnico…</option>
+                  {tecnicos.map((t) => <option key={t.id} value={t.id}>{t.nombre}</option>)}
                 </select>
-                <button onClick={() => setF({ ...f, nuevoEquipo: true, equipoId: '' })} className="text-primary-600 text-xs mt-1">+ Equipo nuevo</button>
-              </>) : (<div className="grid grid-cols-2 gap-1">
-                <select value={f.eqTipo} onChange={(e) => setF({ ...f, eqTipo: e.target.value })} className="border rounded px-2 py-1">{TIPOS_EQUIPO.map((t) => <option key={t} value={t}>{t}</option>)}</select>
-                <input className="border rounded px-2 py-1" placeholder="Marca" value={f.eqMarca} onChange={(e) => setF({ ...f, eqMarca: e.target.value })} />
-                <input className="border rounded px-2 py-1" placeholder="Modelo" value={f.eqModelo} onChange={(e) => setF({ ...f, eqModelo: e.target.value })} />
-                <input className="border rounded px-2 py-1" placeholder="No. de serie" value={f.eqSerie} onChange={(e) => setF({ ...f, eqSerie: e.target.value })} />
-                {equipos.length > 0 && <button onClick={() => setF({ ...f, nuevoEquipo: false })} className="text-slate-500 text-xs col-span-2 text-left">usar equipo existente</button>}
-              </div>)}
-            </div>
-            <div className="md:col-span-2"><div className="font-medium mb-1">Falla reportada</div><textarea className="w-full border rounded px-2 py-1" rows={2} placeholder="Describe la falla" value={f.falla} onChange={(e) => setF({ ...f, falla: e.target.value })} /></div>
-            <div><div className="font-medium mb-1">Estado fisico / accesorios</div><input className="w-full border rounded px-2 py-1" value={f.estadoFisico} onChange={(e) => setF({ ...f, estadoFisico: e.target.value })} /></div>
-            <div className="grid grid-cols-2 gap-2">
-              <div><div className="font-medium mb-1">Garantia</div><select value={f.tipoGarantia} onChange={(e) => setF({ ...f, tipoGarantia: e.target.value })} className="w-full border rounded px-2 py-1"><option value="NINGUNA">Ninguna</option><option value="EPSON">EPSON</option><option value="TALLER">Taller</option></select></div>
-              <div><div className="font-medium mb-1">Tecnico</div><select value={f.tecnicoId} onChange={(e) => setF({ ...f, tecnicoId: e.target.value })} className="w-full border rounded px-2 py-1"><option value="">Sin asignar</option>{tecnicos.map((t) => <option key={t.id} value={t.id}>{t.nombre}</option>)}</select></div>
+              </div>
+              <div>
+                <div className="font-medium mb-1">Técnico asignado</div>
+                <select value={tecnicoId} onChange={(e) => setTecnicoId(e.target.value)} className="w-full border rounded px-2 py-1">
+                  <option value="">Sin asignar</option>
+                  {tecnicos.map((t) => <option key={t.id} value={t.id}>{tecOpt(t)}</option>)}
+                </select>
+              </div>
             </div>
           </div>
-          <div className="mt-4 flex justify-end"><button onClick={guardar} className="bg-green-600 text-white rounded px-5 py-2 text-sm font-medium">Recibir y crear orden</button></div>
+
+          {/* EQUIPOS (uno o varios -> una orden por cada uno) */}
+          <div className="mt-4 space-y-3">
+            {items.map((it, i) => (
+              <div key={i} className="rounded-lg border p-3 bg-slate-50/50">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-xs font-semibold text-slate-500">Equipo {i + 1} — generará la orden {items.length > 1 ? `(${i + 1} de ${items.length})` : ''}</span>
+                  {items.length > 1 && <button onClick={() => setItems((its) => its.filter((_, idx) => idx !== i))} className="text-red-500 text-xs">quitar</button>}
+                </div>
+                <div className="grid md:grid-cols-2 gap-3">
+                  <div>
+                    <div className="text-xs text-slate-500 mb-1">Equipo</div>
+                    {!it.nuevo && equiposCliente.length > 0 ? (<>
+                      <select value={it.equipoId} onChange={(e) => setItem(i, { equipoId: e.target.value })} className="w-full border rounded px-2 py-1">
+                        <option value="">Selecciona un equipo del cliente…</option>
+                        {equiposCliente.map((eq) => <option key={eq.id} value={eq.id}>{eq.tipo} {eq.marca} {eq.modelo} ({eq.numeroSerie || 's/n'})</option>)}
+                      </select>
+                      <button onClick={() => setItem(i, { nuevo: true, equipoId: '' })} className="text-primary-600 text-xs mt-1">+ Equipo nuevo</button>
+                    </>) : (<div className="grid grid-cols-2 gap-1">
+                      <select value={it.eqTipo} onChange={(e) => setItem(i, { eqTipo: e.target.value })} className="border rounded px-2 py-1">{TIPOS_EQUIPO.map((t) => <option key={t} value={t}>{t}</option>)}</select>
+                      <input className="border rounded px-2 py-1" placeholder="Marca" value={it.eqMarca} onChange={(e) => setItem(i, { eqMarca: e.target.value })} />
+                      <input className="border rounded px-2 py-1" placeholder="Modelo" value={it.eqModelo} onChange={(e) => setItem(i, { eqModelo: e.target.value })} />
+                      <input className="border rounded px-2 py-1" placeholder="No. de serie" value={it.eqSerie} onChange={(e) => setItem(i, { eqSerie: e.target.value })} />
+                      {equiposCliente.length > 0 && <button onClick={() => setItem(i, { nuevo: false })} className="text-slate-500 text-xs col-span-2 text-left">usar equipo existente del cliente</button>}
+                    </div>)}
+                  </div>
+                  <div className="grid grid-cols-1 gap-2">
+                    <div><div className="text-xs text-slate-500 mb-1">Falla reportada</div><textarea rows={1} className="w-full border rounded px-2 py-1" value={it.falla} onChange={(e) => setItem(i, { falla: e.target.value })} /></div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <input className="border rounded px-2 py-1" placeholder="Estado físico / accesorios" value={it.estadoFisico} onChange={(e) => setItem(i, { estadoFisico: e.target.value })} />
+                      <select value={it.tipoGarantia} onChange={(e) => setItem(i, { tipoGarantia: e.target.value })} className="border rounded px-2 py-1"><option value="NINGUNA">Sin garantía</option><option value="EPSON">Garantía EPSON</option><option value="TALLER">Garantía taller</option></select>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+            <button onClick={() => setItems((its) => [...its, ITEM_VACIO()])} className="text-primary-600 text-sm font-medium">+ Agregar equipo</button>
+          </div>
+
+          <div className="mt-4 flex justify-end">
+            <button onClick={guardar} disabled={guardando} className="bg-green-600 disabled:bg-slate-300 text-white rounded px-5 py-2 text-sm font-medium">
+              {guardando ? 'Creando…' : `Recibir y crear ${items.length > 1 ? `${items.length} órdenes` : 'orden'}`}
+            </button>
+          </div>
         </div>
       )}
 

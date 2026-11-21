@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Logo } from '../components/Logo';
 
 export default function Login() {
   const { login } = useAuth();
@@ -14,20 +13,28 @@ export default function Login() {
     e.preventDefault();
     setError('');
     try { await login(email, password); nav('/'); }
-    catch { setError('Credenciales incorrectas. Intentalo de nuevo.'); }
+    catch { setError('Credenciales incorrectas. Inténtalo de nuevo.'); }
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-100">
-      <form onSubmit={submit} className="bg-white p-8 rounded-xl shadow-md w-80 space-y-4">
-        <div className="flex justify-center"><Logo size={44} /></div>
-        <p className="text-center text-xs text-slate-500">Centro de Servicio Autorizado <span className="text-sky-600 font-semibold">EPSON</span> · <span className="text-red-500 font-semibold">Canon</span></p>
-        <input className="w-full border rounded px-3 py-2 text-sm" placeholder="Email / Usuario"
-          value={email} onChange={(e) => setEmail(e.target.value)} />
-        <input className="w-full border rounded px-3 py-2 text-sm" type="password" placeholder="Contrasena"
-          value={password} onChange={(e) => setPassword(e.target.value)} />
-        {error && <p className="text-red-600 text-sm">{error}</p>}
-        <button className="w-full bg-primary-600 text-white rounded py-2 text-sm font-medium">Ingresar</button>
+    <div className="flex min-h-screen items-center justify-center px-4">
+      <form onSubmit={submit} className="card card-pad w-full max-w-sm space-y-5 shadow-card-lg">
+        <div className="flex justify-center">
+          <img src="/logo-compuservicios.png" alt="Compuservicios" className="h-12 w-auto" />
+        </div>
+        <p className="text-center text-xs text-slate-500">
+          Centro de Servicio Autorizado <span className="font-semibold text-primary-600">EPSON</span> · <span className="font-semibold text-red-500">Canon</span>
+        </p>
+        <div className="space-y-3">
+          <label className="block"><span className="lbl">Email / Usuario</span>
+            <input placeholder="tucorreo@empresa.com" value={email} onChange={(e) => setEmail(e.target.value)} />
+          </label>
+          <label className="block"><span className="lbl">Contraseña</span>
+            <input type="password" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} />
+          </label>
+        </div>
+        {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>}
+        <button className="btn-primary w-full">Ingresar</button>
       </form>
     </div>
   );

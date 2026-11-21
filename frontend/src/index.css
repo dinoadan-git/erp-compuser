@@ -1,3 +1,98 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  html {
+    font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  }
+  body {
+    @apply text-slate-700 antialiased;
+    background: linear-gradient(180deg, #eff6ff 0%, #f1f5f9 40%, #f8fafc 100%);
+    background-attachment: fixed;
+    min-height: 100vh;
+  }
+  h1, h2, h3, h4 {
+    @apply text-slate-900 font-bold tracking-tight;
+  }
+
+  /* Estilo global para TODOS los campos de formulario del sistema */
+  input:not([type='checkbox']):not([type='radio']):not([type='file']),
+  select,
+  textarea {
+    @apply w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800
+           shadow-sm transition
+           placeholder:text-slate-400
+           focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-100;
+  }
+  input[type='checkbox'], input[type='radio'] {
+    @apply h-4 w-4 rounded border-slate-300 text-primary-600 focus:ring-primary-200 accent-primary-600;
+  }
+  label {
+    @apply text-slate-600;
+  }
+}
+
+@layer components {
+  /* Tarjeta blanca redondeada con sombra suave */
+  .card {
+    @apply rounded-2xl bg-white p-5 shadow-card ring-1 ring-slate-100;
+  }
+  .card-pad {
+    @apply p-5 md:p-6;
+  }
+
+  /* Botones */
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold
+           transition focus:outline-none focus:ring-2 focus:ring-offset-1 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  .btn-primary {
+    @apply btn bg-primary-600 text-white shadow-sm hover:bg-primary-700 focus:ring-primary-200;
+  }
+  .btn-ghost {
+    @apply btn border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 focus:ring-slate-200;
+  }
+  .btn-success {
+    @apply btn bg-emerald-600 text-white shadow-sm hover:bg-emerald-700 focus:ring-emerald-200;
+  }
+  .btn-danger {
+    @apply btn bg-red-600 text-white shadow-sm hover:bg-red-700 focus:ring-red-200;
+  }
+
+  /* Etiqueta de campo */
+  .lbl {
+    @apply mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500;
+  }
+
+  /* Píldoras de estado */
+  .pill {
+    @apply inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold;
+  }
+  .pill-amber { @apply bg-amber-100 text-amber-700; }
+  .pill-green { @apply bg-emerald-100 text-emerald-700; }
+  .pill-blue { @apply bg-primary-100 text-primary-700; }
+  .pill-red { @apply bg-red-100 text-red-700; }
+  .pill-gray { @apply bg-slate-100 text-slate-600; }
+
+  /* Tablas */
+  .tbl {
+    @apply w-full text-sm;
+  }
+  .tbl thead th {
+    @apply bg-slate-50 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500;
+  }
+  .tbl tbody td {
+    @apply border-t border-slate-100 px-4 py-3 text-slate-700;
+  }
+  .tbl tbody tr:hover {
+    @apply bg-slate-50/60;
+  }
+
+  /* Enlace de folio */
+  .folio-link {
+    @apply font-semibold text-primary-600 hover:text-primary-700 hover:underline;
+  }
+}

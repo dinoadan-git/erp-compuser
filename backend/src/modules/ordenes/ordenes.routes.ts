@@ -107,7 +107,7 @@ ordenesRouter.get('/', async (req, res, next) => {
         tecnicoId: tecnicoId ? Number(tecnicoId) : undefined,
         clienteId: clienteId ? Number(clienteId) : undefined,
       },
-      include: { cliente: true, equipo: true, tecnico: { select: { id: true, nombre: true } } },
+      include: { cliente: true, equipo: true, tecnico: { select: { id: true, nombre: true } }, recibidoPor: { select: { id: true, nombre: true } } },
       orderBy: { recibidaEn: 'desc' },
       take: 200,
     });

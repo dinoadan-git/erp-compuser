@@ -27,6 +27,7 @@ export default function Ordenes() {
   const [detalle, setDetalle] = useState<any>(null);
   const [msg, setMsg] = useState('');
   const [guardando, setGuardando] = useState(false);
+  const [q, setQ] = useState('');
 
   // Cliente (una vez) + recibe/tecnico (para todo el lote)
   const [cli, setCli] = useState<any>({ clienteId: '', nuevoCliente: false, clienteNombre: '', clienteTel: '', clienteTipo: 'MOSTRADOR' });
@@ -104,17 +105,39 @@ export default function Ordenes() {
 
   const tecOpt = (t: any) => `${t.nombre}${t.ticketsActivos != null ? ` · ${t.ticketsActivos} tickets` : ''}`;
 
+  const ordenesFiltradas = ordenes.filter((o) => {
+    if (!q.trim()) return true;
+    const t = q.toLowerCase();
+    return [o.folio, o.cliente?.nombre, o.equipo?.numeroSerie, o.equipo?.modelo, o.equipo?.marca]
+      .filter(Boolean).some((v: string) => String(v).toLowerCase().includes(t));
+  });
+
   return (
     <div>
-      <div className="flex justify-between items-center mb-4">
-        <h1 className="text-2xl font-bold">Ordenes de trabajo</h1>
-        <button onClick={() => { setShowForm(!showForm); setMsg(''); }} className="bg-primary-600 text-white rounded px-4 py-2 text-sm font-medium">{showForm ? 'Cancelar' : '+ Nueva orden'}</button>
+      <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold">Órdenes de Servicio</h1>
+          <p className="text-sm text-slate-500">Gestiona la recepción, diagnóstico y entrega de equipos.</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <button className="btn-ghost" title="Filtros">
+            <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M2.628 1.601C5.028 1.206 7.49 1 10 1s4.973.206 7.372.601a.75.75 0 01.628.74v2.288a2.25 2.25 0 01-.659 1.59l-4.682 4.683a2.25 2.25 0 00-.659 1.59v3.037c0 .684-.31 1.33-.844 1.757l-1.937 1.55A.75.75 0 017 19.25v-5.757a2.25 2.25 0 00-.659-1.591L1.659 7.22A2.25 2.25 0 011 5.629V3.34a.75.75 0 01.628-.74z" clipRule="evenodd" /></svg>
+            Filtros
+          </button>
+          <button className="btn-ghost" title="Reporte">
+            <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M3 3.5A1.5 1.5 0 014.5 2h6.879a1.5 1.5 0 011.06.44l4.122 4.12A1.5 1.5 0 0117 7.622V16.5a1.5 1.5 0 01-1.5 1.5h-11A1.5 1.5 0 013 16.5v-13z" /></svg>
+            Reporte
+          </button>
+          <button onClick={() => { setShowForm(!showForm); setMsg(''); }} className={showForm ? 'btn-ghost' : 'btn-primary'}>
+            {showForm ? 'Cancelar' : (<><span className="text-base leading-none">+</span> Nueva</>)}
+          </button>
+        </div>
       </div>
-      {msg && <div className="mb-4 p-3 bg-primary-50 text-primary-800 rounded text-sm">{msg}</div>}
+      {msg && <div className="mb-4 rounded-xl bg-primary-50 px-4 py-3 text-sm text-primary-800 ring-1 ring-primary-100">{msg}</div>}
 
       {showForm && (
-        <div className="bg-white rounded-xl shadow p-5 mb-6 text-sm">
-          <h2 className="font-semibold mb-3">Recepción de equipos</h2>
+        <div className="card mb-6 text-sm">
+          <h2 className="mb-3 font-semibold text-slate-800">Recepción de equipos</h2>
 
           {/* CLIENTE (una sola vez) */}
           <div className="grid md:grid-cols-3 gap-4 pb-4 border-b">
@@ -190,33 +213,60 @@ export default function Ordenes() {
           </div>
 
           <div className="mt-4 flex justify-end">
-            <button onClick={guardar} disabled={guardando} className="bg-green-600 disabled:bg-slate-300 text-white rounded px-5 py-2 text-sm font-medium">
+            <button onClick={guardar} disabled={guardando} className="btn-success disabled:opacity-50">
               {guardando ? 'Creando…' : `Recibir y crear ${items.length > 1 ? `${items.length} órdenes` : 'orden'}`}
             </button>
           </div>
         </div>
       )}
 
-      <div className="bg-white rounded-xl shadow overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-slate-100 text-left"><tr><th className="px-4 py-2">Folio</th><th className="px-4 py-2">Cliente</th><th className="px-4 py-2">Equipo</th><th className="px-4 py-2">Tecnico</th><th className="px-4 py-2">Estatus</th><th className="px-4 py-2"></th></tr></thead>
+      <div className="mb-4 relative max-w-md">
+        <svg className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" viewBox="0 0 20 20" fill="currentColor">
+          <path fillRule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.45 4.39l3.08 3.08a1 1 0 01-1.42 1.42l-3.08-3.08A7 7 0 012 9z" clipRule="evenodd" />
+        </svg>
+        <input style={{ paddingLeft: '2.5rem' }} placeholder="Buscar por Folio, N/S o Cliente..." value={q} onChange={(e) => setQ(e.target.value)} />
+      </div>
+
+      <div className="card p-0 overflow-hidden">
+        <table className="tbl">
+          <thead>
+            <tr>
+              <th>Folio</th><th>Cliente</th><th>Equipo / Modelo</th><th>Técnico</th><th>Estado</th><th>Fecha recepción</th>
+            </tr>
+          </thead>
           <tbody>
-            {ordenes.map((o) => (
-              <tr key={o.id} className="border-t hover:bg-slate-50 cursor-pointer" onClick={() => abrir(o.id)}>
-                <td className="px-4 py-2 font-mono">{o.folio}</td>
-                <td className="px-4 py-2">{o.cliente?.nombre}</td>
-                <td className="px-4 py-2">{o.equipo?.marca} {o.equipo?.modelo}</td>
-                <td className="px-4 py-2">{o.tecnico?.nombre ?? 'Sin asignar'}</td>
-                <td className="px-4 py-2"><span className="px-2 py-1 rounded bg-primary-50 text-primary-700 text-xs">{ESTATUS_LABEL[o.estatus] ?? o.estatus}</span></td>
-                <td className="px-4 py-2 text-right"><span className="text-primary-600 text-xs">Abrir →</span></td>
+            {ordenesFiltradas.map((o) => (
+              <tr key={o.id} className="cursor-pointer" onClick={() => abrir(o.id)}>
+                <td><span className="folio-link">#{o.folio}</span></td>
+                <td className="font-medium text-slate-800">{o.cliente?.nombre}</td>
+                <td>
+                  <div className="text-slate-700">{[o.equipo?.marca, o.equipo?.modelo].filter(Boolean).join(' ') || o.equipo?.tipo || '—'}</div>
+                  {o.equipo?.numeroSerie && (
+                    <span className="mt-1 inline-block rounded-md bg-slate-100 px-2 py-0.5 font-mono text-xs text-slate-500">N/S: {o.equipo.numeroSerie}</span>
+                  )}
+                </td>
+                <td>
+                  <div className="text-slate-700">{o.tecnico?.nombre ?? <span className="text-slate-400">Sin asignar</span>}</div>
+                  {o.recibidoPor?.nombre && <div className="text-xs text-slate-400">Recibió: {o.recibidoPor.nombre}</div>}
+                </td>
+                <td><span className={`pill ${pillEstatus(o.estatus)}`}>{ESTATUS_LABEL[o.estatus] ?? o.estatus}</span></td>
+                <td className="text-slate-500">{o.recibidaEn ? new Date(o.recibidaEn).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}</td>
               </tr>
             ))}
-            {ordenes.length === 0 && <tr><td colSpan={6} className="px-4 py-6 text-center text-slate-400">Sin ordenes</td></tr>}
+            {ordenesFiltradas.length === 0 && <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-400">Sin órdenes</td></tr>}
           </tbody>
         </table>
       </div>
     </div>
   );
+}
+
+function pillEstatus(estatus: string): string {
+  if (['ENTREGADO'].includes(estatus)) return 'pill-green';
+  if (['CANCELADO', 'ABANDONO'].includes(estatus)) return 'pill-gray';
+  if (['LISTO_ENTREGA_REPARADO', 'LISTO_ENTREGA_SIN_REPARAR', 'EN_PRUEBAS_CALIDAD'].includes(estatus)) return 'pill-blue';
+  if (['ESPERANDO_AUTORIZACION', 'ESPERANDO_REFACCION', 'EN_TRAMITE_GARANTIA_EPSON'].includes(estatus)) return 'pill-amber';
+  return 'pill-amber';
 }
 
 function Detalle({ orden, tecnicos, user, onBack, onReload }: { orden: any; tecnicos: any[]; user: any; onBack: () => void; onReload: () => void }) {
@@ -275,39 +325,41 @@ function Detalle({ orden, tecnicos, user, onBack, onReload }: { orden: any; tecn
 
   return (
     <div>
-      <button onClick={onBack} className="text-primary-600 text-sm mb-3">← Volver a la lista</button>
-      {msg && <div className="mb-4 p-3 bg-primary-50 text-primary-800 rounded text-sm">{msg}</div>}
-      <div className="flex flex-wrap justify-between items-start gap-2 mb-4">
+      <button onClick={onBack} className="mb-3 text-sm font-medium text-primary-600 hover:text-primary-700">← Volver a la lista</button>
+      {msg && <div className="mb-4 rounded-xl bg-primary-50 px-4 py-3 text-sm text-primary-800 ring-1 ring-primary-100">{msg}</div>}
+      <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold">{orden.folio}</h1>
-          <p className="text-slate-500 text-sm">{orden.cliente?.nombre} · {orden.equipo?.tipo} {orden.equipo?.marca} {orden.equipo?.modelo} ({orden.equipo?.numeroSerie || 's/n'})</p>
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-bold">Folio #{orden.folio}</h1>
+            <span className={`pill ${pillEstatus(orden.estatus)}`}>{ESTATUS_LABEL[orden.estatus] ?? orden.estatus}</span>
+          </div>
+          <p className="mt-1 text-sm text-slate-500">{orden.cliente?.nombre} · {orden.equipo?.tipo} {orden.equipo?.marca} {orden.equipo?.modelo} ({orden.equipo?.numeroSerie || 's/n'})</p>
         </div>
         <div className="flex items-center gap-2">
-          <span className="px-3 py-1 rounded-full bg-primary-50 text-primary-700 text-sm font-medium">{ESTATUS_LABEL[orden.estatus] ?? orden.estatus}</span>
-          <button onClick={() => generarComprobanteRecepcion(orden, empresa)} className="bg-slate-600 text-white rounded px-3 py-1.5 text-sm">Comprobante recepcion</button>
-          <button onClick={() => generarOrdenPdf(orden, empresa)} className="bg-slate-800 text-white rounded px-3 py-1.5 text-sm">Orden de servicio PDF</button>
+          <button onClick={() => generarComprobanteRecepcion(orden, empresa)} className="btn-ghost text-xs">Comprobante recepción</button>
+          <button onClick={() => generarOrdenPdf(orden, empresa)} className="btn-primary text-xs">Orden de servicio PDF</button>
         </div>
       </div>
 
       <div className="grid md:grid-cols-2 gap-4">
         {/* Datos */}
-        <div className="bg-white rounded-xl shadow p-4 text-sm space-y-2">
+        <div className="card text-sm space-y-2">
           <h2 className="font-semibold">Datos del equipo</h2>
           <div><b>Falla:</b> {orden.fallaReportada}</div>
           <div><b>Estado fisico:</b> {orden.estadoFisico || '—'}</div>
           <div><b>Garantia:</b> {orden.tipoGarantia}</div>
           <div><b>Tecnico:</b> {orden.tecnico?.nombre ?? 'Sin asignar'}</div>
           <div className="pt-2 flex flex-wrap gap-2">
-            {esTecnico && <button onClick={tomar} className="bg-primary-600 text-white rounded px-3 py-1 text-xs">Tomar orden</button>}
+            {esTecnico && <button onClick={tomar} className="btn-primary px-3 py-1 text-xs">Tomar orden</button>}
             <select value={asignar} onChange={(e) => setAsignar(e.target.value)} className="border rounded px-2 py-1 text-xs">
               <option value="">Asignar tecnico...</option>{tecnicos.map((t) => <option key={t.id} value={t.id}>{t.nombre}</option>)}
             </select>
-            <button onClick={asignarTecnico} className="bg-slate-700 text-white rounded px-3 py-1 text-xs">Asignar</button>
+            <button onClick={asignarTecnico} className="btn-ghost px-3 py-1 text-xs">Asignar</button>
           </div>
         </div>
 
         {/* Cambiar estatus */}
-        <div className="bg-white rounded-xl shadow p-4 text-sm space-y-2">
+        <div className="card text-sm space-y-2">
           <h2 className="font-semibold">Cambiar estatus</h2>
           <div className="text-xs text-slate-500">Actual: <b>{ESTATUS_LABEL[orden.estatus] ?? orden.estatus}</b></div>
           {permitidos.length === 0 ? (
@@ -317,13 +369,13 @@ function Detalle({ orden, tecnicos, user, onBack, onReload }: { orden: any; tecn
               {permitidos.map((s) => <option key={s} value={s}>{ESTATUS_LABEL[s] ?? s}</option>)}
             </select>
             <input className="w-full border rounded px-2 py-1" placeholder="Nota (opcional)" value={nota} onChange={(e) => setNota(e.target.value)} />
-            <button onClick={cambiarEstatus} className="bg-green-600 text-white rounded px-4 py-1">Actualizar estatus</button>
+            <button onClick={cambiarEstatus} className="btn-success px-4 py-1.5">Actualizar estatus</button>
             <p className="text-xs text-slate-400">Solo se muestran los siguientes pasos validos del flujo; no se puede regresar a un estatus anterior.</p>
           </>)}
         </div>
 
         {/* Diagnostico y cotizacion */}
-        <div className="bg-white rounded-xl shadow p-4 text-sm space-y-2 md:col-span-2">
+        <div className="card text-sm space-y-2 md:col-span-2">
           <h2 className="font-semibold">Diagnostico y cotizacion</h2>
           <textarea className="w-full border rounded px-2 py-1" rows={2} placeholder="Diagnostico del tecnico" value={ed.diagnostico} onChange={(e) => setEd({ ...ed, diagnostico: e.target.value })} />
           <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
@@ -331,17 +383,17 @@ function Detalle({ orden, tecnicos, user, onBack, onReload }: { orden: any; tecn
             <label>Cotizacion total<input type="number" className="w-full border rounded px-2 py-1" value={ed.cotizacionTotal} onChange={(e) => setEd({ ...ed, cotizacionTotal: Number(e.target.value) })} /></label>
             <label>Garantia<select className="w-full border rounded px-2 py-1" value={ed.tipoGarantia} onChange={(e) => setEd({ ...ed, tipoGarantia: e.target.value })}><option value="NINGUNA">Ninguna</option><option value="EPSON">EPSON</option><option value="TALLER">Taller</option></select></label>
           </div>
-          <button onClick={guardarEdicion} className="bg-primary-600 text-white rounded px-4 py-1">Guardar cambios</button>
+          <button onClick={guardarEdicion} className="btn-primary px-4 py-1.5">Guardar cambios</button>
         </div>
 
         {/* Cobro en POS */}
-        <div className="bg-white rounded-xl shadow p-4 text-sm md:col-span-2">
+        <div className="card text-sm md:col-span-2">
           <h2 className="font-semibold mb-2">Cobro</h2>
           {orden.venta ? (
             <div className="p-3 bg-green-50 text-green-800 rounded">
               Orden cobrada — Ticket <b>{orden.venta.folio}</b> por <b>${Number(orden.venta.total).toFixed(2)}</b>
               {orden.estatus !== 'ENTREGADO' && (
-                <button onClick={cambiarAEntregado} className="ml-3 bg-green-600 text-white rounded px-3 py-1 text-xs">Marcar entregado</button>
+                <button onClick={cambiarAEntregado} className="btn-success ml-3 px-3 py-1 text-xs">Marcar entregado</button>
               )}
             </div>
           ) : (
@@ -351,14 +403,14 @@ function Detalle({ orden, tecnicos, user, onBack, onReload }: { orden: any; tecn
                 <div className="text-2xl font-bold text-primary-700">${totalCobro.toFixed(2)}</div>
                 <div className="text-xs text-slate-400">Refacciones ${partsNet.toFixed(2)} + Mano de obra ${laborNet.toFixed(2)}</div>
               </div>
-              <button onClick={irACobrarPos} disabled={baseCobro <= 0} className="bg-green-600 disabled:bg-slate-300 text-white rounded px-5 py-2 font-medium">Cobrar en POS →</button>
+              <button onClick={irACobrarPos} disabled={baseCobro <= 0} className="btn-success disabled:opacity-50">Cobrar en POS →</button>
               {baseCobro <= 0 && <span className="text-xs text-amber-600">Captura la cotizacion antes de cobrar.</span>}
             </div>
           )}
         </div>
 
         {/* Refacciones / materiales */}
-        <div className="bg-white rounded-xl shadow p-4 text-sm md:col-span-2">
+        <div className="card text-sm md:col-span-2">
           <h2 className="font-semibold mb-2">Refacciones y materiales usados</h2>
           {(orden.consumos || []).length > 0 ? (
             <table className="w-full mb-3">
@@ -391,7 +443,7 @@ function Detalle({ orden, tecnicos, user, onBack, onReload }: { orden: any; tecn
         </div>
 
         {/* Bitacora */}
-        <div className="bg-white rounded-xl shadow p-4 text-sm md:col-span-2">
+        <div className="card text-sm md:col-span-2">
           <h2 className="font-semibold mb-2">Bitacora</h2>
           <ol className="border-l-2 border-primary-200 pl-4 space-y-3">
             {(orden.bitacora || []).map((b: any) => (
@@ -406,7 +458,7 @@ function Detalle({ orden, tecnicos, user, onBack, onReload }: { orden: any; tecn
         </div>
 
         {/* Notificaciones al cliente */}
-        <div className="bg-white rounded-xl shadow p-4 text-sm md:col-span-2">
+        <div className="card text-sm md:col-span-2">
           <h2 className="font-semibold mb-2">Notificaciones al cliente</h2>
           {(orden.notificaciones || []).length === 0 ? (
             <p className="text-slate-400">Aun no se han generado notificaciones.</p>

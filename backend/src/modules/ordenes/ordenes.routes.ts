@@ -7,6 +7,7 @@ import { siguienteFolio } from '../../lib/folios.js';
 import { requireAuth, requireRole } from '../../middleware/auth.js';
 import { aplicarMovimiento } from '../../lib/inventario.js';
 import { notificar } from '../../lib/notificaciones.js';
+import { corteAbierto, requiereCajaAbierta, CAJA_CERRADA_EFECTIVO } from '../ventas/ventas.service.js';
 
 export const ordenesRouter = Router();
 ordenesRouter.use(requireAuth);
@@ -77,21 +78,34 @@ const recepcionSchema = z.object({
   tecnicoId: z.coerce.number().optional(),
   recibidoPorId: z.coerce.number().optional(),
   prometidaEn: z.coerce.date().optional(),
+  // diagnostico / anticipo capturados en recepcion
+  diagnostico: z.string().optional(),
+  costoDiagnostico: z.coerce.number().min(0).default(200),
+  anticipo: z.coerce.number().min(0).default(0),
+  anticipoForma: z.enum(['EFECTIVO', 'TARJETA', 'TRANSFERENCIA', 'CREDITO', 'MIXTO']).default('EFECTIVO'),
 });
 
 // Recepcion de un equipo -> genera folio consecutivo y token QR.
 ordenesRouter.post('/', async (req, res, next) => {
   try {
-    const data = recepcionSchema.parse(req.body);
+    const { anticipo, anticipoForma, ...data } = recepcionSchema.parse(req.body);
+    // Un anticipo en efectivo exige caja abierta; con otra forma se permite.
+    const corte = await corteAbierto(req.user!.id);
+    if (anticipo > 0 && requiereCajaAbierta([anticipoForma]) && !corte) {
+      return res.status(409).json({ error: CAJA_CERRADA_EFECTIVO });
+    }
     const folio = await siguienteFolio('ORDEN', 'OT-');
     const orden = await prisma.ordenTrabajo.create({
       data: {
         ...data,
+        anticipo,
         folio,
         qrToken: randomUUID(),
         bitacora: { create: { estatus: 'RECIBIDO', nota: 'Equipo recibido', usuarioId: req.user!.id } },
+        // El anticipo queda ligado al corte del dia para reportarse en el corte.
+        ...(anticipo > 0 ? { anticipoReg: { create: { monto: anticipo, forma: anticipoForma, corteCajaId: corte?.id, usuarioId: req.user!.id } } } : {}),
       },
-      include: { bitacora: true, cliente: true, equipo: true },
+      include: { bitacora: true, cliente: true, equipo: true, anticipoReg: true },
     });
     await notificar({ evento: 'recepcion', orden });
     res.status(201).json(orden);
@@ -100,16 +114,29 @@ ordenesRouter.post('/', async (req, res, next) => {
 
 ordenesRouter.get('/', async (req, res, next) => {
   try {
-    const { estatus, tecnicoId, clienteId } = req.query;
+    const { estatus, tecnicoId, clienteId, tipoGarantia, desde, hasta, q } = req.query as Record<string, string>;
+    const recibidaEn = (desde || hasta) ? {
+      gte: desde ? new Date(desde) : undefined,
+      lte: hasta ? new Date(`${hasta}T23:59:59`) : undefined,
+    } : undefined;
+    const texto = q?.trim();
     const ordenes = await prisma.ordenTrabajo.findMany({
       where: {
         estatus: estatus ? (estatus as EstatusOrden) : undefined,
         tecnicoId: tecnicoId ? Number(tecnicoId) : undefined,
         clienteId: clienteId ? Number(clienteId) : undefined,
+        tipoGarantia: tipoGarantia ? (tipoGarantia as any) : undefined,
+        recibidaEn,
+        ...(texto ? { OR: [
+          { folio: { contains: texto, mode: 'insensitive' } },
+          { cliente: { nombre: { contains: texto, mode: 'insensitive' } } },
+          { equipo: { numeroSerie: { contains: texto, mode: 'insensitive' } } },
+          { equipo: { modelo: { contains: texto, mode: 'insensitive' } } },
+        ] } : {}),
       },
       include: { cliente: true, equipo: true, tecnico: { select: { id: true, nombre: true } }, recibidoPor: { select: { id: true, nombre: true } } },
       orderBy: { recibidaEn: 'desc' },
-      take: 200,
+      take: 500,
     });
     res.json(ordenes);
   } catch (e) { next(e); }
@@ -125,6 +152,7 @@ ordenesRouter.get('/:id', async (req, res, next) => {
         bitacora: { orderBy: { creadoEn: 'desc' }, include: { usuario: { select: { nombre: true } } } },
         consumos: { include: { producto: true } },
         venta: { include: { pagos: true } },
+        anticipoReg: true,
       },
     });
     if (!orden) return res.status(404).json({ error: 'Orden no encontrada' });

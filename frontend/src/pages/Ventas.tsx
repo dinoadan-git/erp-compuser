@@ -90,6 +90,8 @@ export default function Ventas() {
   const ordSub = ordLineas.reduce((s, l) => s + l.cant * l.precioUnit, 0);
   const ordIva = cobrarIva ? ordSub * 0.16 : 0;
   const ordTotal = ordSub + ordIva;
+  const ordAnticipo = Number(ordenCobro?.anticipo) || 0;
+  const ordSaldo = Math.max(0, Math.round((ordTotal - ordAnticipo) * 100) / 100);
 
   return (
     <div>
@@ -149,12 +151,21 @@ export default function Ventas() {
             <div className="text-sm text-right">
               <div>Subtotal: ${ordSub.toFixed(2)}</div>
               <div>IVA: ${ordIva.toFixed(2)}</div>
-              <div className="text-xl font-bold text-primary-700">Total: ${ordTotal.toFixed(2)}</div>
+              {ordAnticipo > 0
+                ? (<>
+                    <div>Total: ${ordTotal.toFixed(2)}</div>
+                    <div className="text-emerald-600">Anticipo: -${ordAnticipo.toFixed(2)}</div>
+                    <div className="text-xl font-bold text-orange-600">Saldo: ${ordSaldo.toFixed(2)}</div>
+                  </>)
+                : <div className="text-xl font-bold text-primary-700">Total: ${ordTotal.toFixed(2)}</div>}
             </div>
             <select value={forma} onChange={(e) => setForma(e.target.value)} className="border rounded px-2 py-1 text-sm">
               <option value="EFECTIVO">Efectivo</option><option value="TARJETA">Tarjeta</option><option value="TRANSFERENCIA">Transferencia</option><option value="CREDITO">Credito</option>
             </select>
-            <button onClick={cobrarOrden} disabled={ordLineas.length === 0} className="bg-green-600 disabled:bg-slate-300 text-white rounded px-5 py-2 font-medium">Cobrar y generar ticket</button>
+            <div className="flex flex-col items-end">
+              <button onClick={cobrarOrden} disabled={ordLineas.length === 0 || (forma === 'EFECTIVO' && ordSaldo > 0 && !caja)} className="btn-success disabled:opacity-50">Cobrar y generar ticket</button>
+              {forma === 'EFECTIVO' && ordSaldo > 0 && !caja && <span className="mt-1 text-xs text-amber-600">Abre la caja para cobrar en efectivo o cambia la forma de pago.</span>}
+            </div>
           </div>
         </div>
       )}
@@ -209,11 +220,11 @@ export default function Ventas() {
               <option value="TRANSFERENCIA">Transferencia</option>
               <option value="CREDITO">Credito</option>
             </select>
-            <button onClick={cobrar} disabled={!caja || carrito.length === 0}
-              className="w-full bg-green-600 disabled:bg-slate-300 text-white rounded py-2 mt-2 font-medium">
+            <button onClick={cobrar} disabled={carrito.length === 0 || (forma === 'EFECTIVO' && !caja)}
+              className="btn-success w-full disabled:opacity-50 mt-2">
               Cobrar
             </button>
-            {!caja && <p className="text-xs text-amber-600 text-center">Abre la caja para cobrar</p>}
+            {forma === 'EFECTIVO' && !caja && <p className="text-xs text-amber-600 text-center">Abre la caja para cobrar en efectivo, o cambia la forma de pago.</p>}
           </div>
         </div>
       </div>

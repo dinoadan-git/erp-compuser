@@ -154,6 +154,7 @@ model Usuario {
   movimientos      MovimientoInventario[]
   ventas           Venta[]
   cortes           CorteCaja[]
+  anticiposRecibidos AnticipoOrden[]
   auditorias       Auditoria[]
 }
 
@@ -499,6 +500,7 @@ model CorteCaja {
   cerradoEn     DateTime?
 
   ventas        Venta[]
+  anticipos     AnticipoOrden[]
 }
 
 // ---------------------------------------------------------------------------
@@ -531,6 +533,9 @@ model OrdenTrabajo {
   diagnostico    String?
   costoDiagnostico Decimal   @default(0) @db.Decimal(14, 2)
   cotizacionTotal  Decimal   @default(0) @db.Decimal(14, 2)
+  // anticipo / apartado dejado en recepcion (se descuenta del saldo al cobrar)
+  anticipo       Decimal     @default(0) @db.Decimal(14, 2)
+  anticipoReg    AnticipoOrden?
   autorizadaEn   DateTime?
   autorizadaPor  String?     // mostrador / whatsapp / correo / enlinea
 
@@ -548,6 +553,24 @@ model OrdenTrabajo {
 
   @@index([estatus])
   @@index([clienteId])
+  @@index([recibidaEn])
+}
+
+// Anticipo / apartado recibido al dar de alta la orden. Queda ligado al
+// corte de caja del dia en que se recibio, para que se reporte en ese corte.
+model AnticipoOrden {
+  id          Int          @id @default(autoincrement())
+  ordenId     Int          @unique
+  orden       OrdenTrabajo @relation(fields: [ordenId], references: [id], onDelete: Cascade)
+  monto       Decimal      @db.Decimal(14, 2)
+  forma       FormaPago
+  corteCajaId Int?
+  corteCaja   CorteCaja?   @relation(fields: [corteCajaId], references: [id])
+  usuarioId   Int?
+  usuario     Usuario?     @relation(fields: [usuarioId], references: [id])
+  creadoEn    DateTime     @default(now())
+
+  @@index([corteCajaId])
 }
 
 model BitacoraOrden {

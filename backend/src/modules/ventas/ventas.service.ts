@@ -32,3 +32,13 @@ export function calcularTotales(
 export async function corteAbierto(usuarioId: number) {
   return prisma.corteCaja.findFirst({ where: { usuarioId, cerradoEn: null }, orderBy: { abiertoEn: 'desc' } });
 }
+
+// Mensaje de error estandar cuando se intenta cobrar en efectivo sin caja abierta.
+export const CAJA_CERRADA_EFECTIVO =
+  'Debes abrir la caja para cobrar en efectivo. Abre la caja o cambia el método de pago (tarjeta/transferencia).';
+
+// Un cobro en efectivo exige caja abierta. Con cualquier otra forma se permite
+// sin caja. `formas` es la lista de formas de pago del cobro.
+export function requiereCajaAbierta(formas: string[]): boolean {
+  return formas.some((f) => f === 'EFECTIVO');
+}

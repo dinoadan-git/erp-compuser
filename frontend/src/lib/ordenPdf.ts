@@ -210,17 +210,23 @@ function dibujarComprobante(doc: jsPDF, yTop: number, copia: string, orden: any,
   grisLbl('Recibe:', dx, y);
   doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(sky[0], sky[1], sky[2]);
   doc.text(((orden.recibidoPor?.nombre || orden.tecnico?.nombre) || '').toUpperCase(), R, y, { align: 'right' });
-  // costo revision + sello
+  // costo revision + anticipo/apartado + sello
   const cy = obsY + 4;
-  doc.setFillColor(235, 242, 252); doc.rect(dx, cy, boxW, 9, 'F');
+  doc.setFillColor(235, 242, 252); doc.rect(dx, cy, boxW, 13, 'F');
   doc.setFont('helvetica', 'bold'); doc.setFontSize(9.5); doc.setTextColor(negro, negro, negro);
-  doc.text(`COSTO REVISION: ${money(orden.costoDiagnostico)}`, dx + 2, cy + 6);
+  doc.text(`COSTO REVISION: ${money(orden.costoDiagnostico)}`, dx + 2, cy + 5);
+  // Anticipo / apartado dejado en recepcion
+  const ant = Number(orden.anticipo) || 0;
+  const antForma = orden.anticipoReg?.forma ? ` (${FORMA_LABEL[orden.anticipoReg.forma] || orden.anticipoReg.forma})` : '';
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5);
+  if (ant > 0) { doc.setTextColor(16, 122, 64); doc.text(`APARTADO: ${money(ant)}${antForma}`, dx + 2, cy + 10.5); }
+  else { doc.setTextColor(150, 150, 150); doc.text('SIN ANTICIPO / APARTADO', dx + 2, cy + 10.5); }
   // sello NO PAGADA / PAGADA
   const pagada = !!orden.venta;
   doc.setDrawColor(90); doc.rect(R - 26, cy + 0.5, 25, 8);
   doc.setFont('helvetica', 'bolditalic'); doc.setFontSize(9); doc.setTextColor(pagada ? 20 : 150, pagada ? 140 : 150, pagada ? 60 : 150);
   doc.text(pagada ? 'PAGADA' : 'NO PAGADA', R - 13.5, cy + 5.6, { align: 'center' });
-  y = cy + 13;
+  y = cy + 17;
 
   // QR pequeno (solo copia cliente)
   if (qrData && copia === 'CLIENTE') {
@@ -271,7 +277,7 @@ const FORMA_LABEL: Record<string, string> = {
 export function generarTicketVenta(venta: any, empresa?: any) {
   const w = 80, mx = 5, cw = w - mx * 2;
   const det = venta.detalles || [];
-  const alto = 70 + det.length * 8 + (venta.pagos?.length || 1) * 4;
+  const alto = 70 + det.length * 8 + (venta.pagos?.length || 1) * 4 + (Number(venta.anticipoAplicado) > 0 ? 8 : 0);
   const doc = new jsPDF({ unit: 'mm', format: [w, alto] });
   let y = 7;
   const center = (t: string, yy: number) => doc.text(t, w / 2, yy, { align: 'center' });
@@ -315,6 +321,13 @@ export function generarTicketVenta(venta: any, empresa?: any) {
   doc.setFont('helvetica', 'bold'); doc.setFontSize(10);
   rowLR('TOTAL', money(venta.total), y); y += 5;
   doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5);
+  const anticipoPrev = Number(venta.anticipoAplicado) || 0;
+  if (anticipoPrev > 0) {
+    rowLR('Anticipo recibido', `- ${money(anticipoPrev)}`, y); y += 4;
+    doc.setFont('helvetica', 'bold');
+    rowLR('SALDO A PAGAR', money(Number(venta.total) - anticipoPrev), y); y += 4;
+    doc.setFont('helvetica', 'normal');
+  }
   for (const p of (venta.pagos || [])) { rowLR(FORMA_LABEL[p.forma] || p.forma, money(p.monto), y); y += 4; }
 
   y += 2; sep(y); y += 4;
@@ -357,4 +370,75 @@ export async function imprimirComprobantesRecepcion(ordenes: any[], empresa?: an
   } catch {
     doc.save(`comprobantes-${Date.now()}.pdf`);
   }
+}
+
+// Reporte en PDF del resultado de búsqueda del listado de órdenes.
+export function generarReporteOrdenes(ordenes: any[], filtros: any, tecnicos: any[], empresa?: any) {
+  const doc = new jsPDF({ unit: 'mm', format: 'letter', orientation: 'landscape' });
+  const W = doc.internal.pageSize.getWidth();
+  const H = doc.internal.pageSize.getHeight();
+  const M = 10;
+  const sky: [number, number, number] = [37, 99, 235];
+
+  // Encabezado
+  dibujarMarca(doc, M, 10);
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(13); doc.setTextColor(30, 30, 30);
+  doc.text('Compuservicios', M + 16, 15);
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(12); doc.setTextColor(sky[0], sky[1], sky[2]);
+  doc.text('Reporte de órdenes de servicio', W - M, 14, { align: 'right' });
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(110);
+  doc.text(`Generado: ${new Date().toLocaleString('es-MX')}`, W - M, 19, { align: 'right' });
+
+  // Filtros aplicados
+  const tecNombre = filtros.tecnicoId ? (tecnicos.find((t) => String(t.id) === String(filtros.tecnicoId))?.nombre || filtros.tecnicoId) : '';
+  const partes: string[] = [];
+  if (filtros.estatus) partes.push(`Estatus: ${ESTATUS_LABEL[filtros.estatus] || filtros.estatus}`);
+  if (tecNombre) partes.push(`Técnico: ${tecNombre}`);
+  if (filtros.tipoGarantia) partes.push(`Garantía: ${filtros.tipoGarantia}`);
+  if (filtros.desde) partes.push(`Desde: ${filtros.desde}`);
+  if (filtros.hasta) partes.push(`Hasta: ${filtros.hasta}`);
+  if (filtros.q) partes.push(`Búsqueda: "${filtros.q}"`);
+  doc.setFontSize(8); doc.setTextColor(90);
+  doc.text(partes.length ? `Filtros — ${partes.join(' · ')}` : 'Sin filtros (todas las órdenes)', M, 24);
+  doc.text(`${ordenes.length} orden(es)`, W - M, 24, { align: 'right' });
+
+  // Tabla
+  const cols = [
+    { h: 'Folio', w: 20 }, { h: 'Recepción', w: 20 }, { h: 'Cliente', w: 44 },
+    { h: 'Equipo / Modelo', w: 38 }, { h: 'N/S', w: 27 }, { h: 'Técnico', w: 34 },
+    { h: 'Estado', w: 34 }, { h: 'Garantía', w: 20 }, { h: 'Anticipo', w: 20 },
+  ];
+  let x0 = M; const xs = cols.map((c) => { const x = x0; x0 += c.w; return x; });
+  let y = 30;
+  const header = () => {
+    doc.setFillColor(sky[0], sky[1], sky[2]); doc.rect(M, y, W - M * 2, 7, 'F');
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(7.5); doc.setTextColor(255, 255, 255);
+    cols.forEach((c, i) => doc.text(c.h, xs[i] + 1.5, y + 4.7));
+    y += 7;
+  };
+  header();
+  doc.setFont('helvetica', 'normal'); doc.setTextColor(40, 40, 40);
+  ordenes.forEach((o, idx) => {
+    if (y > H - 14) { doc.addPage(); y = 14; header(); doc.setFont('helvetica', 'normal'); doc.setTextColor(40, 40, 40); }
+    if (idx % 2 === 1) { doc.setFillColor(243, 246, 251); doc.rect(M, y, W - M * 2, 6, 'F'); }
+    doc.setFontSize(7.3);
+    const fecha = o.recibidaEn ? new Date(o.recibidaEn).toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: '2-digit' }) : '—';
+    const row = [
+      `#${o.folio}`, fecha, o.cliente?.nombre || '—',
+      [o.equipo?.marca, o.equipo?.modelo].filter(Boolean).join(' ') || o.equipo?.tipo || '—',
+      o.equipo?.numeroSerie || '—', o.tecnico?.nombre || 'Sin asignar',
+      ESTATUS_LABEL[o.estatus] || o.estatus, o.tipoGarantia || 'NINGUNA',
+      Number(o.anticipo) > 0 ? money(o.anticipo) : '—',
+    ];
+    row.forEach((v, i) => doc.text(doc.splitTextToSize(String(v), cols[i].w - 2)[0], xs[i] + 1.5, y + 4.2));
+    y += 6;
+  });
+
+  // Pie con total de anticipos
+  const totalAnticipos = ordenes.reduce((s, o) => s + (Number(o.anticipo) || 0), 0);
+  y += 2; doc.setDrawColor(200); doc.line(M, y, W - M, y); y += 5;
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5); doc.setTextColor(30, 30, 30);
+  doc.text(`Anticipos en el resultado: ${money(totalAnticipos)}`, W - M, y, { align: 'right' });
+
+  doc.save(`reporte-ordenes-${new Date().toISOString().slice(0, 10)}.pdf`);
 }

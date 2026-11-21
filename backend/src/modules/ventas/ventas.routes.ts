@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { prisma } from '../../lib/prisma.js';
 import { siguienteFolio } from '../../lib/folios.js';
 import { requireAuth, requireRole } from '../../middleware/auth.js';
-import { aplicarMovimiento, calcularTotales, corteAbierto, r2, type ItemVenta } from './ventas.service.js';
+import { aplicarMovimiento, calcularTotales, corteAbierto, requiereCajaAbierta, CAJA_CERRADA_EFECTIVO, r2, type ItemVenta } from './ventas.service.js';
 import { notificar } from '../../lib/notificaciones.js';
 
 export const ventasRouter = Router();
@@ -16,7 +16,17 @@ ventasRouter.use(requireAuth);
 ventasRouter.get('/caja/actual', async (req, res, next) => {
   try {
     const corte = await corteAbierto(req.user!.id);
-    res.json(corte);
+    if (!corte) return res.json(null);
+    // Totales acumulados del corte en curso (ventas + anticipos de ordenes).
+    const pagos = await prisma.pagoVenta.findMany({ where: { venta: { corteCajaId: corte.id } } });
+    const anticipos = await prisma.anticipoOrden.findMany({ where: { corteCajaId: corte.id } });
+    const sum = (arr: { forma: string; monto: any }[], forma: string) =>
+      arr.filter((p) => p.forma === forma).reduce((s, p) => s + Number(p.monto), 0);
+    const efectivo = r2(sum(pagos, 'EFECTIVO') + sum(anticipos, 'EFECTIVO'));
+    const tarjeta = r2(sum(pagos, 'TARJETA') + sum(anticipos, 'TARJETA'));
+    const anticiposEfectivo = r2(sum(anticipos, 'EFECTIVO'));
+    const esperadoEfectivo = r2(Number(corte.fondoApertura) + efectivo - Number(corte.retiros));
+    res.json({ ...corte, resumen: { efectivo, tarjeta, anticiposEfectivo, anticiposTotal: r2(anticipos.reduce((s, a) => s + Number(a.monto), 0)), esperadoEfectivo } });
   } catch (e) { next(e); }
 });
 
@@ -45,10 +55,14 @@ ventasRouter.post('/caja/cerrar', requireRole('CAJERO', 'RECEPCION'), async (req
     const { arqueo } = z.object({ arqueo: z.coerce.number().min(0) }).parse(req.body);
     const corte = await corteAbierto(req.user!.id);
     if (!corte) return res.status(409).json({ error: 'No hay caja abierta' });
-    // Totales reales por forma de pago de las ventas ligadas al corte.
+    // Totales reales por forma de pago de las ventas ligadas al corte,
+    // mas los anticipos de ordenes recibidos durante este corte.
     const pagos = await prisma.pagoVenta.findMany({ where: { venta: { corteCajaId: corte.id } } });
-    const totalEfectivo = r2(pagos.filter((p) => p.forma === 'EFECTIVO').reduce((s, p) => s + Number(p.monto), 0));
-    const totalTarjeta = r2(pagos.filter((p) => p.forma === 'TARJETA').reduce((s, p) => s + Number(p.monto), 0));
+    const anticipos = await prisma.anticipoOrden.findMany({ where: { corteCajaId: corte.id } });
+    const sum = (arr: { forma: string; monto: any }[], forma: string) =>
+      arr.filter((p) => p.forma === forma).reduce((s, p) => s + Number(p.monto), 0);
+    const totalEfectivo = r2(sum(pagos, 'EFECTIVO') + sum(anticipos, 'EFECTIVO'));
+    const totalTarjeta = r2(sum(pagos, 'TARJETA') + sum(anticipos, 'TARJETA'));
     const esperadoEfectivo = r2(Number(corte.fondoApertura) + totalEfectivo - Number(corte.retiros));
     const diferencia = r2(arqueo - esperadoEfectivo);
     const cerrado = await prisma.corteCaja.update({
@@ -116,6 +130,10 @@ ventasRouter.post('/', async (req, res, next) => {
     }
 
     const corte = await corteAbierto(req.user!.id);
+    // Para cobrar en efectivo la caja debe estar abierta; con otra forma se permite.
+    if (afectaStock && requiereCajaAbierta(body.pagos.map((p) => p.forma)) && !corte) {
+      return res.status(409).json({ error: CAJA_CERRADA_EFECTIVO });
+    }
     const prefijo = { TICKET: 'TK-', FACTURA: 'FA-', COTIZACION: 'COT-', APARTADO: 'AP-' }[body.tipo];
     const folio = await siguienteFolio('VENTA', prefijo);
 
@@ -268,19 +286,29 @@ ventasRouter.post('/orden/:ordenId', async (req, res, next) => {
     const total = r2(subtotal + impuestos);
     if (total <= 0) return res.status(400).json({ error: 'No hay importe a cobrar: captura la cotizacion o consume refacciones.' });
 
+    // El anticipo dejado en recepcion ya se reporto en su corte; aqui solo se
+    // cobra el saldo. El saldo no puede ser negativo.
+    const anticipo = r2(Math.min(Number(orden.anticipo) || 0, total));
+    const saldo = r2(total - anticipo);
+    const aCobrar = monto != null ? r2(monto) : saldo;
+
     const corte = await corteAbierto(req.user!.id);
+    // El cobro del saldo en efectivo exige caja abierta; con otra forma se permite.
+    if (aCobrar > 0 && requiereCajaAbierta([forma]) && !corte) {
+      return res.status(409).json({ error: CAJA_CERRADA_EFECTIVO });
+    }
     const folio = await siguienteFolio('VENTA', 'TK-');
     const venta = await prisma.venta.create({
       data: {
         folio, tipo: 'TICKET', clienteId: orden.clienteId, cajeroId: req.user!.id, corteCajaId: corte?.id,
         ordenTrabajoId: ordenId, subtotal, impuestos, total,
         detalles: { create: detalles },
-        pagos: { create: [{ forma, monto: monto ?? total, refPago }] },
+        pagos: { create: aCobrar > 0 ? [{ forma, monto: aCobrar, refPago }] : [] },
       },
       include: { detalles: true, pagos: true },
     });
     await notificar({ evento: 'ticket', orden, venta });
-    res.status(201).json(venta);
+    res.status(201).json({ ...venta, anticipoAplicado: anticipo, saldoCobrado: aCobrar });
   } catch (e) { next(e); }
 });
 

@@ -30,15 +30,36 @@ function Empresa() {
   useEffect(() => { api.get('/config/empresa').then((r) => setE(r.data)); }, []);
   if (!e) return null;
   const set = (k: string, v: any) => setE({ ...e, [k]: v });
-  async function guardar() { await api.put('/config/empresa', { nombre: e.nombre, rfc: e.rfc, regimenFiscal: e.regimenFiscal, cpFiscal: e.cpFiscal, direccion: e.direccion, telefono: e.telefono, email: e.email, diasAbandono: Number(e.diasAbandono) }); setMsg('Guardado'); }
+  async function guardar() {
+    await api.put('/config/empresa', {
+      nombre: e.nombre, rfc: e.rfc, regimenFiscal: e.regimenFiscal, cpFiscal: e.cpFiscal,
+      direccion: e.direccion, telefono: e.telefono, telefono2: e.telefono2, whatsapp: e.whatsapp,
+      email: e.email, sitioWeb: e.sitioWeb, facebook: e.facebook, instagram: e.instagram,
+      diasAbandono: Number(e.diasAbandono),
+    });
+    setMsg('Guardado');
+  }
+  const campos: [string, string][] = [
+    ['nombre', 'Nombre'], ['rfc', 'RFC'], ['regimenFiscal', 'Régimen fiscal'], ['cpFiscal', 'CP fiscal'],
+    ['direccion', 'Dirección / domicilio'], ['telefono', 'Teléfono'], ['telefono2', 'Teléfono 2'],
+    ['whatsapp', 'WhatsApp'], ['email', 'Email'], ['sitioWeb', 'Sitio web'],
+    ['facebook', 'Facebook'], ['instagram', 'Instagram'],
+  ];
   return (
-    <div className="bg-white rounded-xl shadow p-4 max-w-xl space-y-2 text-sm">
-      {msg && <div className="p-2 bg-green-50 text-green-700 rounded">{msg}</div>}
-      {[['nombre', 'Nombre'], ['rfc', 'RFC'], ['regimenFiscal', 'Régimen fiscal'], ['cpFiscal', 'CP fiscal'], ['direccion', 'Dirección'], ['telefono', 'Teléfono'], ['email', 'Email']].map(([k, label]) => (
-        <label key={k} className="block">{label}<input className="w-full border rounded px-2 py-1" value={e[k] ?? ''} onChange={(ev) => set(k, ev.target.value)} /></label>
-      ))}
-      <label className="block">Días para abandono<input type="number" className="w-full border rounded px-2 py-1" value={e.diasAbandono ?? 0} onChange={(ev) => set('diasAbandono', ev.target.value)} /></label>
-      <button onClick={guardar} className="bg-primary-600 text-white rounded px-4 py-1">Guardar</button>
+    <div className="card max-w-2xl text-sm">
+      {msg && <div className="mb-3 rounded-lg bg-emerald-50 px-3 py-2 text-emerald-700">{msg}</div>}
+      <p className="mb-3 text-xs text-slate-500">Estos datos aparecen en el encabezado de los tickets y comprobantes.</p>
+      <div className="grid gap-3 md:grid-cols-2">
+        {campos.map(([k, label]) => (
+          <label key={k} className="block"><span className="lbl">{label}</span>
+            <input value={e[k] ?? ''} onChange={(ev) => set(k, ev.target.value)} />
+          </label>
+        ))}
+        <label className="block"><span className="lbl">Días para abandono</span>
+          <input type="number" value={e.diasAbandono ?? 0} onChange={(ev) => set('diasAbandono', ev.target.value)} />
+        </label>
+      </div>
+      <button onClick={guardar} className="btn-primary mt-4">Guardar</button>
     </div>
   );
 }

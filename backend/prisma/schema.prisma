@@ -130,7 +130,12 @@ model Empresa {
   logoUrl         String?
   direccion       String?
   telefono        String?
+  telefono2       String?
+  whatsapp        String?
   email           String?
+  sitioWeb        String?
+  facebook        String?
+  instagram       String?
   // Politicas configurables
   diasAbandono    Int      @default(90)
   creadoEn        DateTime @default(now())
@@ -494,6 +499,7 @@ model CorteCaja {
   totalEfectivo Decimal  @default(0) @db.Decimal(14, 2)
   totalTarjeta  Decimal  @default(0) @db.Decimal(14, 2)
   retiros       Decimal  @default(0) @db.Decimal(14, 2)
+  ingresos      Decimal  @default(0) @db.Decimal(14, 2)
   arqueo        Decimal?  @db.Decimal(14, 2)
   diferencia    Decimal?  @db.Decimal(14, 2)
   abiertoEn     DateTime @default(now())

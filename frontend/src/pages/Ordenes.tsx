@@ -518,35 +518,6 @@ function Detalle({ orden, tecnicos, user, onBack, onReload }: { orden: any; tecn
           <button onClick={guardarEdicion} className="btn-primary px-4 py-1.5">Guardar cambios</button>
         </div>
 
-        {/* Cobro en POS */}
-        <div className="card text-sm md:col-span-2">
-          <h2 className="font-semibold mb-2">Cobro</h2>
-          {orden.venta ? (
-            <div className="p-3 bg-green-50 text-green-800 rounded">
-              Orden cobrada — Ticket <b>{orden.venta.folio}</b> por <b>${Number(orden.venta.total).toFixed(2)}</b>
-              {orden.estatus !== 'ENTREGADO' && (
-                <button onClick={cambiarAEntregado} className="btn-success ml-3 px-3 py-1 text-xs">Marcar entregado</button>
-              )}
-            </div>
-          ) : (
-            <div className="flex flex-wrap items-end gap-3">
-              <div>
-                <div className="text-slate-500 text-xs">Importe estimado (refacciones + mano de obra, IVA incl.)</div>
-                <div className="text-2xl font-bold text-primary-700">${totalCobro.toFixed(2)}</div>
-                <div className="text-xs text-slate-400">Refacciones ${partsNet.toFixed(2)} + Mano de obra ${laborNet.toFixed(2)}</div>
-                {Number(orden.anticipo) > 0 && (
-                  <div className="mt-1 text-xs">
-                    <span className="text-emerald-600">Anticipo recibido: ${Number(orden.anticipo).toFixed(2)}</span>
-                    <span className="ml-2 font-semibold text-orange-600">Saldo: ${Math.max(0, totalCobro - Number(orden.anticipo)).toFixed(2)}</span>
-                  </div>
-                )}
-              </div>
-              <button onClick={irACobrarPos} disabled={baseCobro <= 0} className="btn-success disabled:opacity-50">Cobrar en POS →</button>
-              {baseCobro <= 0 && <span className="text-xs text-amber-600">Captura la cotizacion antes de cobrar.</span>}
-            </div>
-          )}
-        </div>
-
         {/* Refacciones / materiales */}
         <div className="card text-sm md:col-span-2">
           <h2 className="font-semibold mb-2">Refacciones y materiales usados</h2>
@@ -578,6 +549,35 @@ function Detalle({ orden, tecnicos, user, onBack, onReload }: { orden: any; tecn
               </ul>
             )}
           </div>
+        </div>
+
+        {/* Cobro en POS (después de refacciones) */}
+        <div className="card text-sm md:col-span-2">
+          <h2 className="font-semibold mb-2">Cobro</h2>
+          {orden.venta ? (
+            <div className="p-3 bg-green-50 text-green-800 rounded">
+              Orden cobrada — Ticket <b>{orden.venta.folio}</b> por <b>${Number(orden.venta.total).toFixed(2)}</b>
+              {orden.estatus !== 'ENTREGADO' && (
+                <button onClick={cambiarAEntregado} className="btn-success ml-3 px-3 py-1 text-xs">Marcar entregado</button>
+              )}
+            </div>
+          ) : (
+            <div className="flex flex-wrap items-end gap-3">
+              <div>
+                <div className="text-slate-500 text-xs">Importe estimado (refacciones + mano de obra, IVA incl.)</div>
+                <div className="text-2xl font-bold text-primary-700">${totalCobro.toFixed(2)}</div>
+                <div className="text-xs text-slate-400">Refacciones ${partsNet.toFixed(2)} + Mano de obra ${laborNet.toFixed(2)}</div>
+                {Number(orden.anticipo) > 0 && (
+                  <div className="mt-1 text-xs">
+                    <span className="text-emerald-600">Anticipo recibido: ${Number(orden.anticipo).toFixed(2)}</span>
+                    <span className="ml-2 font-semibold text-orange-600">Saldo: ${Math.max(0, totalCobro - Number(orden.anticipo)).toFixed(2)}</span>
+                  </div>
+                )}
+              </div>
+              <button onClick={irACobrarPos} disabled={baseCobro <= 0} className="btn-success disabled:opacity-50">Cobrar en POS →</button>
+              {baseCobro <= 0 && <span className="text-xs text-amber-600">Captura la cotizacion antes de cobrar.</span>}
+            </div>
+          )}
         </div>
 
         {/* Bitacora */}

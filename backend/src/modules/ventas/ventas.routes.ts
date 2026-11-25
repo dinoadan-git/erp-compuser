@@ -25,7 +25,7 @@ ventasRouter.get('/caja/actual', async (req, res, next) => {
     const efectivo = r2(sum(pagos, 'EFECTIVO') + sum(anticipos, 'EFECTIVO'));
     const tarjeta = r2(sum(pagos, 'TARJETA') + sum(anticipos, 'TARJETA'));
     const anticiposEfectivo = r2(sum(anticipos, 'EFECTIVO'));
-    const esperadoEfectivo = r2(Number(corte.fondoApertura) + efectivo - Number(corte.retiros));
+    const esperadoEfectivo = r2(Number(corte.fondoApertura) + efectivo + Number(corte.ingresos) - Number(corte.retiros));
     res.json({ ...corte, resumen: { efectivo, tarjeta, anticiposEfectivo, anticiposTotal: r2(anticipos.reduce((s, a) => s + Number(a.monto), 0)), esperadoEfectivo } });
   } catch (e) { next(e); }
 });
@@ -50,6 +50,17 @@ ventasRouter.post('/caja/retiro', requireRole('CAJERO', 'RECEPCION'), async (req
   } catch (e) { next(e); }
 });
 
+// Abono / ingreso de efectivo a la caja (lo contrario de un retiro).
+ventasRouter.post('/caja/ingreso', requireRole('CAJERO', 'RECEPCION'), async (req, res, next) => {
+  try {
+    const { monto } = z.object({ monto: z.coerce.number().positive() }).parse(req.body);
+    const corte = await corteAbierto(req.user!.id);
+    if (!corte) return res.status(409).json({ error: 'No hay caja abierta' });
+    const upd = await prisma.corteCaja.update({ where: { id: corte.id }, data: { ingresos: { increment: monto } } });
+    res.json(upd);
+  } catch (e) { next(e); }
+});
+
 ventasRouter.post('/caja/cerrar', requireRole('CAJERO', 'RECEPCION'), async (req, res, next) => {
   try {
     const { arqueo } = z.object({ arqueo: z.coerce.number().min(0) }).parse(req.body);
@@ -63,7 +74,7 @@ ventasRouter.post('/caja/cerrar', requireRole('CAJERO', 'RECEPCION'), async (req
       arr.filter((p) => p.forma === forma).reduce((s, p) => s + Number(p.monto), 0);
     const totalEfectivo = r2(sum(pagos, 'EFECTIVO') + sum(anticipos, 'EFECTIVO'));
     const totalTarjeta = r2(sum(pagos, 'TARJETA') + sum(anticipos, 'TARJETA'));
-    const esperadoEfectivo = r2(Number(corte.fondoApertura) + totalEfectivo - Number(corte.retiros));
+    const esperadoEfectivo = r2(Number(corte.fondoApertura) + totalEfectivo + Number(corte.ingresos) - Number(corte.retiros));
     const diferencia = r2(arqueo - esperadoEfectivo);
     const cerrado = await prisma.corteCaja.update({
       where: { id: corte.id },

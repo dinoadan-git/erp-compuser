@@ -5,6 +5,12 @@ import { generarTicketVenta } from '../lib/ordenPdf';
 interface Prod { id: number; sku: string | null; nombre: string; tasaIva: number; precioPublico: number; disponible: number }
 interface Linea { productoId: number; nombre: string; cantidad: number; precioUnit: number; tasaIva: number }
 
+const TIPO_LBL: Record<string, string> = { TICKET: 'Ticket', FACTURA: 'Factura', COTIZACION: 'Cotización', APARTADO: 'Apartado', NOTA_CREDITO: 'Nota de crédito' };
+const FORMAS: { k: string; label: string }[] = [
+  { k: 'EFECTIVO', label: 'Efectivo' }, { k: 'TARJETA', label: 'Tarjeta' },
+  { k: 'TRANSFERENCIA', label: 'Transferencia' }, { k: 'MIXTO', label: 'Mixto' },
+];
+
 export default function Ventas() {
   const [vista, setVista] = useState<'pos' | 'historial'>('pos');
   const [caja, setCaja] = useState<any>(null);
@@ -15,6 +21,10 @@ export default function Ventas() {
   const [carrito, setCarrito] = useState<Linea[]>([]);
   const [forma, setForma] = useState('EFECTIVO');
   const [cobrarIva, setCobrarIva] = useState(true);
+  const [tipoVenta, setTipoVenta] = useState('TICKET');
+  const [recibido, setRecibido] = useState('');       // efectivo recibido (para cambio)
+  const [mixEfectivo, setMixEfectivo] = useState(''); // pago mixto: parte efectivo
+  const [folioNC, setFolioNC] = useState('');         // nota de crédito: folio origen
   const [ordenCobro, setOrdenCobro] = useState<any>(null);
   const [empresa, setEmpresa] = useState<any>(null);
   const [msg, setMsg] = useState('');
@@ -53,18 +63,69 @@ export default function Ventas() {
     setMsg(`Caja cerrada. Esperado efectivo: $${data.esperadoEfectivo} · Diferencia: $${data.corte.diferencia}`);
     setArqueo(''); cargarCaja();
   }
+  async function movimientoCaja(tipo: 'retiro' | 'ingreso') {
+    const etiqueta = tipo === 'retiro' ? 'Retiro de efectivo' : 'Abono / ingreso de efectivo';
+    const v = window.prompt(`${etiqueta} — monto:`);
+    if (!v) return;
+    try { await api.post(`/ventas/caja/${tipo}`, { monto: Number(v) }); setMsg(`${etiqueta}: $${Number(v).toFixed(2)}`); cargarCaja(); }
+    catch (e: any) { setMsg(e?.response?.data?.error ?? 'Error en el movimiento de caja'); }
+  }
+
+  // Formas de pago (pagos[]) según la forma elegida y el total a cubrir.
+  function construirPagos(monto: number): { forma: string; monto: number }[] | { error: string } {
+    if (forma === 'MIXTO') {
+      const ef = Math.round((Number(mixEfectivo) || 0) * 100) / 100;
+      const tj = Math.round((monto - ef) * 100) / 100;
+      if (ef <= 0 || tj < 0) return { error: 'En pago mixto captura cuánto va en efectivo (el resto va a tarjeta).' };
+      return [{ forma: 'EFECTIVO', monto: ef }, { forma: 'TARJETA', monto: tj }];
+    }
+    return [{ forma, monto }];
+  }
+
   async function cobrar() {
     try {
+      const esCotizacion = tipoVenta === 'COTIZACION';
+      const esApartado = tipoVenta === 'APARTADO';
+      // Monto que se cobra ahora: apartado = anticipo recibido; cotización = 0; resto = total.
+      let pagos: { forma: string; monto: number }[] = [];
+      if (!esCotizacion) {
+        const montoCobrar = esApartado ? (Math.round((Number(recibido) || 0) * 100) / 100) : Number(total.toFixed(2));
+        if (esApartado && montoCobrar <= 0) { setMsg('Captura el anticipo del apartado en "Recibido".'); return; }
+        const res = construirPagos(montoCobrar);
+        if ('error' in res) { setMsg(res.error); return; }
+        pagos = res;
+      }
       const { data } = await api.post('/ventas', {
-        tipo: 'TICKET', cobrarIva,
+        tipo: tipoVenta, cobrarIva,
         items: carrito.map((l) => ({ productoId: l.productoId, cantidad: l.cantidad, precioUnit: l.precioUnit })),
-        pagos: [{ forma, monto: Number(total.toFixed(2)) }],
+        pagos,
       });
-      setMsg(`Venta ${data.folio} registrada por $${data.total}`);
-      setCarrito([]);
+      setMsg(`${TIPO_LBL[tipoVenta]} ${data.folio} registrada por $${Number(data.total).toFixed(2)}`);
+      // Imprimir ticket (con datos de empresa/cliente y cambio) salvo cotización.
+      if (!esCotizacion) {
+        try {
+          const full = await api.get(`/ventas/${data.id}`);
+          generarTicketVenta({ ...full.data, _recibido: forma === 'EFECTIVO' ? Number(recibido) || 0 : 0 }, empresa);
+        } catch { /* ignore */ }
+      }
+      setCarrito([]); setRecibido(''); setMixEfectivo(''); cargarCaja();
     } catch (e: any) {
       setMsg(e?.response?.data?.error ?? 'Error al cobrar');
     }
+  }
+
+  // Nota de crédito / devolución a partir del folio de una venta existente.
+  async function generarNotaCredito() {
+    if (!folioNC.trim()) { setMsg('Captura el folio de la venta a devolver.'); return; }
+    try {
+      const { data: lista } = await api.get('/ventas', { params: { folio: folioNC.trim() } });
+      const origen = (lista as any[]).find((v) => v.folio?.toLowerCase() === folioNC.trim().toLowerCase()) || lista[0];
+      if (!origen) { setMsg(`No se encontró la venta ${folioNC}.`); return; }
+      const { data } = await api.post(`/ventas/${origen.id}/devolucion`, { motivo: 'Nota de crédito desde POS' });
+      setMsg(`Nota de crédito ${data.folio} generada sobre ${origen.folio} por $${Number(data.total).toFixed(2)}`);
+      setFolioNC('');
+      try { const full = await api.get(`/ventas/${data.id}`); generarTicketVenta(full.data, empresa); } catch { /* ignore */ }
+    } catch (e: any) { setMsg(e?.response?.data?.error ?? 'Error al generar la nota de crédito'); }
   }
 
   // Cobro de la orden de trabajo precargada (viene del detalle de la orden).
@@ -108,28 +169,43 @@ export default function Ventas() {
       {vista === 'pos' && (<>
 
       {/* Barra de caja */}
-      <div className="mb-4 bg-white rounded-xl shadow p-4 flex items-center gap-4 text-sm">
+      <div className="card mb-4 flex flex-wrap items-center gap-3 text-sm">
         {caja ? (
           <>
-            <span className="font-medium text-green-700">Caja abierta</span>
-            <span className="text-slate-500">Fondo: ${Number(caja.fondoApertura).toFixed(2)} · Retiros: ${Number(caja.retiros).toFixed(2)}</span>
-            <input className="border rounded px-2 py-1 w-32" placeholder="Arqueo $" value={arqueo} onChange={(e) => setArqueo(e.target.value)} />
-            <button onClick={cerrarCaja} className="bg-slate-700 text-white rounded px-3 py-1">Cerrar caja</button>
+            <span className="pill pill-green">Caja abierta</span>
+            <span className="text-slate-500">
+              Fondo: ${Number(caja.fondoApertura).toFixed(2)} · Ingresos: ${Number(caja.ingresos || 0).toFixed(2)} · Retiros: ${Number(caja.retiros).toFixed(2)}
+              {caja.resumen && <> · En caja: <b className="text-slate-700">${Number(caja.resumen.esperadoEfectivo).toFixed(2)}</b></>}
+            </span>
+            <button onClick={() => movimientoCaja('ingreso')} className="btn-ghost px-3 py-1.5 text-xs">+ Abono a caja</button>
+            <button onClick={() => movimientoCaja('retiro')} className="btn-ghost px-3 py-1.5 text-xs">− Retiro</button>
+            <div className="ml-auto flex items-center gap-2">
+              <input className="w-28" placeholder="Arqueo $" value={arqueo} onChange={(e) => setArqueo(e.target.value)} />
+              <button onClick={cerrarCaja} className="btn-ghost px-3 py-1.5">Cerrar caja</button>
+            </div>
           </>
         ) : (
           <>
-            <span className="text-slate-500">Caja cerrada</span>
-            <input className="border rounded px-2 py-1 w-32" placeholder="Fondo $" value={fondo} onChange={(e) => setFondo(e.target.value)} />
-            <button onClick={abrirCaja} className="bg-primary-600 text-white rounded px-3 py-1">Abrir caja</button>
+            <span className="pill pill-gray">Caja cerrada</span>
+            <input className="w-28" placeholder="Fondo $" value={fondo} onChange={(e) => setFondo(e.target.value)} />
+            <button onClick={abrirCaja} className="btn-primary px-3 py-1.5">Abrir caja</button>
           </>
         )}
       </div>
 
       {/* Cobro de orden de trabajo (precargado desde la orden) */}
       {ordenCobro && (
-        <div className="bg-white rounded-xl shadow p-5 mb-4 border-2 border-primary-300">
-          <div className="flex justify-between items-center mb-3">
-            <h2 className="font-semibold text-lg">Cobro de orden {ordenCobro.folio} · {ordenCobro.cliente?.nombre}</h2>
+        <div className="card mb-4 ring-2 ring-primary-300">
+          <div className="flex justify-between items-start mb-3">
+            <div>
+              <h2 className="font-semibold text-lg">Cobro de orden {ordenCobro.folio}</h2>
+              <div className="text-xs text-slate-500">
+                Cliente: <b className="text-slate-700">{ordenCobro.cliente?.nombre}</b>
+                {ordenCobro.cliente?.telefono && <> · Tel: {ordenCobro.cliente.telefono}</>}
+                {ordenCobro.cliente?.rfc && <> · RFC: {ordenCobro.cliente.rfc}</>}
+                {ordenCobro.equipo && <> · {ordenCobro.equipo.marca} {ordenCobro.equipo.modelo} ({ordenCobro.equipo.numeroSerie || 's/n'})</>}
+              </div>
+            </div>
             <button onClick={() => { setOrdenCobro(null); window.history.replaceState({}, '', '/ventas'); }} className="text-slate-400 text-sm">cancelar</button>
           </div>
           <table className="w-full text-sm mb-3">
@@ -210,21 +286,69 @@ export default function Ventas() {
             ))}
             {carrito.length === 0 && <div className="text-slate-400 text-sm py-6 text-center">Carrito vacio</div>}
           </div>
-          <div className="mt-3 border-t pt-3 text-sm space-y-1">
-            <div className="flex justify-between"><span>Subtotal</span><span>${subtotal.toFixed(2)}</span></div>
-            <label className="flex items-center justify-between"><span className="flex items-center gap-2"><input type="checkbox" checked={cobrarIva} disabled={forma !== 'EFECTIVO'} onChange={(e) => setCobrarIva(e.target.checked)} /> Cobrar IVA</span><span>${iva.toFixed(2)}</span></label>
-            <div className="flex justify-between font-bold text-lg"><span>Total</span><span>${total.toFixed(2)}</span></div>
-            <select value={forma} onChange={(e) => setForma(e.target.value)} className="w-full border rounded px-2 py-1 mt-2">
-              <option value="EFECTIVO">Efectivo</option>
-              <option value="TARJETA">Tarjeta</option>
-              <option value="TRANSFERENCIA">Transferencia</option>
-              <option value="CREDITO">Credito</option>
-            </select>
-            <button onClick={cobrar} disabled={carrito.length === 0 || (forma === 'EFECTIVO' && !caja)}
-              className="btn-success w-full disabled:opacity-50 mt-2">
-              Cobrar
-            </button>
-            {forma === 'EFECTIVO' && !caja && <p className="text-xs text-amber-600 text-center">Abre la caja para cobrar en efectivo, o cambia la forma de pago.</p>}
+          <div className="mt-3 border-t pt-3 text-sm space-y-2">
+            {/* Tipo de cobro */}
+            <div className="flex flex-wrap gap-1">
+              {['TICKET', 'FACTURA', 'COTIZACION', 'APARTADO', 'NOTA_CREDITO'].map((t) => (
+                <button key={t} onClick={() => setTipoVenta(t)}
+                  className={`rounded-lg px-2.5 py-1 text-xs font-medium transition ${tipoVenta === t ? 'bg-primary-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
+                  {TIPO_LBL[t]}
+                </button>
+              ))}
+            </div>
+
+            {tipoVenta === 'NOTA_CREDITO' ? (
+              <div className="rounded-lg bg-amber-50 p-3 ring-1 ring-amber-100">
+                <div className="mb-1 text-xs text-slate-600">Folio de la venta a devolver (reingresa el stock):</div>
+                <div className="flex gap-2">
+                  <input value={folioNC} onChange={(e) => setFolioNC(e.target.value)} placeholder="TK-000123" />
+                  <button onClick={generarNotaCredito} className="btn-danger whitespace-nowrap">Generar NC</button>
+                </div>
+              </div>
+            ) : (<>
+              <div className="flex justify-between"><span>Subtotal</span><span>${subtotal.toFixed(2)}</span></div>
+              <label className="flex items-center justify-between"><span className="flex items-center gap-2"><input type="checkbox" checked={cobrarIva} disabled={forma !== 'EFECTIVO'} onChange={(e) => setCobrarIva(e.target.checked)} /> Cobrar IVA</span><span>${iva.toFixed(2)}</span></label>
+              <div className="flex justify-between text-lg font-bold"><span>Total</span><span>${total.toFixed(2)}</span></div>
+
+              {/* Formas de pago (botones) */}
+              {tipoVenta !== 'COTIZACION' && (<>
+                <div className="grid grid-cols-4 gap-1 pt-1">
+                  {FORMAS.map((f) => (
+                    <button key={f.k} onClick={() => setForma(f.k)}
+                      className={`rounded-lg px-1 py-1.5 text-xs font-medium transition ${forma === f.k ? 'bg-primary-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
+                      {f.label}
+                    </button>
+                  ))}
+                </div>
+
+                {forma === 'MIXTO' && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-slate-500 whitespace-nowrap">Efectivo $</span>
+                    <input type="number" min={0} step="0.01" value={mixEfectivo} onChange={(e) => setMixEfectivo(e.target.value)} placeholder="0.00" />
+                    <span className="text-xs text-slate-500 whitespace-nowrap">Tarjeta: ${Math.max(0, total - (Number(mixEfectivo) || 0)).toFixed(2)}</span>
+                  </div>
+                )}
+
+                {/* Recibido y cambio (solo efectivo) o anticipo (apartado) */}
+                {(forma === 'EFECTIVO' || tipoVenta === 'APARTADO') && (
+                  <div className="flex items-center justify-between gap-2">
+                    <label className="flex items-center gap-2">{tipoVenta === 'APARTADO' ? 'Anticipo recibido $' : 'Recibido $'}
+                      <input type="number" min={0} step="0.01" value={recibido} onChange={(e) => setRecibido(e.target.value)} placeholder="0.00" className="w-28" />
+                    </label>
+                    {tipoVenta !== 'APARTADO' && Number(recibido) > 0 && (
+                      <span className="font-semibold text-emerald-600">Cambio: ${Math.max(0, (Number(recibido) || 0) - total).toFixed(2)}</span>
+                    )}
+                  </div>
+                )}
+              </>)}
+
+              <button onClick={cobrar} disabled={carrito.length === 0 || (forma !== 'TARJETA' && forma !== 'TRANSFERENCIA' && tipoVenta !== 'COTIZACION' && !caja)}
+                className="btn-success w-full disabled:opacity-50 mt-1">
+                {tipoVenta === 'COTIZACION' ? 'Generar cotización' : tipoVenta === 'APARTADO' ? 'Registrar apartado' : 'Cobrar'}
+              </button>
+              {(forma === 'EFECTIVO' || forma === 'MIXTO') && tipoVenta !== 'COTIZACION' && !caja &&
+                <p className="text-center text-xs text-amber-600">Abre la caja para cobrar en efectivo, o usa tarjeta/transferencia.</p>}
+            </>)}
           </div>
         </div>
       </div>
@@ -256,14 +380,16 @@ function HistorialVentas() {
 
   // Cajeros disponibles (derivados de los resultados).
   const cajeros = Array.from(new Map(ventas.filter((v) => v.cajero).map((v) => [v.cajero.id, v.cajero])).values());
-  const totalPeriodo = ventas.filter((v) => v.tipo !== 'COTIZACION' && v.tipo !== 'APARTADO').reduce((s, v) => s + Number(v.total), 0);
+  // Sumatoria de las ventas del periodo filtrado (excluye cotizaciones y apartados,
+  // que no son ingreso cerrado; las notas de crédito restan).
+  const ventasCobradas = ventas.filter((v) => v.tipo !== 'COTIZACION' && v.tipo !== 'APARTADO');
+  const totalPeriodo = ventasCobradas.reduce((s, v) => s + Number(v.total), 0);
 
   async function reimprimir(id: number) {
     const { data } = await api.get(`/ventas/${id}`);
     generarTicketVenta(data, empresa);
   }
 
-  const TIPO_LBL: Record<string, string> = { TICKET: 'Ticket', FACTURA: 'Factura', COTIZACION: 'Cotizacion', APARTADO: 'Apartado', NOTA_CREDITO: 'Nota credito' };
 
   return (
     <div>
@@ -283,10 +409,10 @@ function HistorialVentas() {
           </select>
         </label>
         <label>Folio<input value={folio} onChange={(e) => setFolio(e.target.value)} placeholder="TK-..." className="block border rounded px-2 py-1 w-28" /></label>
-        <button onClick={cargar} className="bg-primary-600 text-white rounded px-4 py-1.5">Buscar</button>
+        <button onClick={cargar} className="btn-primary px-4 py-1.5">Buscar</button>
         <div className="ml-auto text-right">
-          <div className="text-xs text-slate-500">Total del periodo (ventas)</div>
-          <div className="text-lg font-bold text-primary-700">${totalPeriodo.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</div>
+          <div className="text-xs text-slate-500">Sumatoria del periodo · {ventasCobradas.length} venta(s)</div>
+          <div className="text-xl font-bold text-primary-700">${totalPeriodo.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</div>
         </div>
       </div>
 
@@ -310,6 +436,15 @@ function HistorialVentas() {
             ))}
             {ventas.length === 0 && <tr><td colSpan={7} className="px-4 py-6 text-center text-slate-400">Sin ventas en el periodo</td></tr>}
           </tbody>
+          {ventas.length > 0 && (
+            <tfoot>
+              <tr className="border-t-2 border-slate-200 bg-slate-50 font-semibold">
+                <td className="px-4 py-2" colSpan={5}>Sumatoria del periodo ({ventasCobradas.length} venta(s), sin cotizaciones/apartados)</td>
+                <td className="px-4 py-2 text-right text-primary-700">${totalPeriodo.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</td>
+                <td></td>
+              </tr>
+            </tfoot>
+          )}
         </table>
       </div>
     </div>

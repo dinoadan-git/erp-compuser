@@ -11,8 +11,51 @@ const ESTATUS_LABEL: Record<string, string> = {
 
 const money = (n: any) => `$${Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
+// ---- Logo oficial del sitio (mismo PNG que usa la web) para los PDF ----
+type LogoInfo = { data: string; w: number; h: number } | null;
+let LOGO_CACHE: LogoInfo = null;
+let LOGO_PROMISE: Promise<LogoInfo> | null = null;
+export async function ensureLogo(): Promise<LogoInfo> {
+  if (LOGO_CACHE) return LOGO_CACHE;
+  if (!LOGO_PROMISE) {
+    LOGO_PROMISE = (async () => {
+      try {
+        const resp = await fetch('/logo-compuservicios.png');
+        if (!resp.ok) return null;
+        const blob = await resp.blob();
+        const data = await new Promise<string>((res, rej) => {
+          const r = new FileReader(); r.onload = () => res(r.result as string); r.onerror = rej; r.readAsDataURL(blob);
+        });
+        const dim = await new Promise<{ w: number; h: number }>((res) => {
+          const img = new Image(); img.onload = () => res({ w: img.naturalWidth, h: img.naturalHeight });
+          img.onerror = () => res({ w: 917, h: 204 }); img.src = data;
+        });
+        LOGO_CACHE = { data, w: dim.w, h: dim.h };
+      } catch { LOGO_CACHE = null; }
+      return LOGO_CACHE;
+    })();
+  }
+  return LOGO_PROMISE;
+}
+if (typeof window !== 'undefined') ensureLogo();
+
+// Dibuja el logo oficial con altura `h` (mm) en (x,y). Si aún no cargó, usa el
+// arco tricolor + texto como respaldo. Devuelve el ancho dibujado.
+function dibujarLogo(doc: jsPDF, x: number, y: number, h: number): number {
+  if (LOGO_CACHE) {
+    const w = h * (LOGO_CACHE.w / LOGO_CACHE.h);
+    try { doc.addImage(LOGO_CACHE.data, 'PNG', x, y, w, h); return w; } catch { /* respaldo abajo */ }
+  }
+  dibujarMarca(doc, x + 4.5, y + h / 2);
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(h * 1.15); doc.setTextColor(30, 30, 30);
+  doc.text('Compuser', x + 10, y + h / 2 + 1); const wCom = doc.getTextWidth('Compuser');
+  doc.setTextColor(150, 150, 150); doc.text('vicios', x + 10 + wCom, y + h / 2 + 1);
+  return 46;
+}
+
 // Genera y descarga el PDF de la orden de servicio.
-export function generarOrdenPdf(orden: any, empresa?: any) {
+export async function generarOrdenPdf(orden: any, empresa?: any) {
+  await ensureLogo();
   const doc = new jsPDF({ unit: 'mm', format: 'letter' });
   const M = 15;                 // margen
   const W = doc.internal.pageSize.getWidth();
@@ -22,13 +65,8 @@ export function generarOrdenPdf(orden: any, empresa?: any) {
   const label = (txt: string, x: number, yy: number) => { doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(110); doc.text(txt.toUpperCase(), x, yy); };
   const value = (txt: string, x: number, yy: number) => { doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(30); doc.text(txt || '-', x, yy); };
 
-  // Encabezado con marca Compuservicios
-  dibujarMarca(doc, M + 4, y + 4);
-  doc.setFont('helvetica', 'bold'); doc.setFontSize(14); doc.setTextColor(30, 30, 30);
-  doc.text('Compuser', M + 10, y + 5); const wC = doc.getTextWidth('Compuser');
-  doc.setTextColor(150, 150, 150); doc.text('vicios', M + 10 + wC, y + 5);
-  doc.setFont('helvetica', 'normal'); doc.setFontSize(5.5); doc.setTextColor(120);
-  doc.text('HACEMOS QUE LA TECNOLOGIA FUNCIONE PARA TI', M + 10, y + 8.5);
+  // Encabezado con logo oficial
+  dibujarLogo(doc, M, y, 11);
   doc.setFont('helvetica', 'bold'); doc.setFontSize(7.5); doc.setTextColor(30, 30, 30);
   doc.text('CENTRO DE SERVICIO AUTORIZADO', W / 2, y + 2, { align: 'center' });
   doc.setFont('helvetica', 'bolditalic'); doc.setFontSize(10); doc.setTextColor(14, 165, 233);
@@ -144,13 +182,8 @@ function dibujarComprobante(doc: jsPDF, yTop: number, copia: string, orden: any,
   const val = (t: string, x: number, yy: number, sz = 9.5) => { doc.setFont('helvetica', 'bold'); doc.setFontSize(sz); doc.setTextColor(negro, negro, negro); doc.text(t || '-', x, yy); };
   const hline = (yy: number) => { doc.setDrawColor(40); doc.setLineWidth(0.4); doc.line(M, yy, R, yy); doc.setLineWidth(0.2); };
 
-  // Encabezado: marca | centro autorizado | folio
-  dibujarMarca(doc, M + 5, y + 5);
-  doc.setFont('helvetica', 'bold'); doc.setFontSize(13); doc.setTextColor(negro, negro, negro);
-  doc.text('Compuser', M + 11, y + 6); const wCom = doc.getTextWidth('Compuser');
-  doc.setTextColor(150, 150, 150); doc.text('vicios', M + 11 + wCom, y + 6);
-  doc.setFont('helvetica', 'normal'); doc.setFontSize(5); doc.setTextColor(gris, gris, gris);
-  doc.text(MARCA.tagline, M + 11, y + 9.5);
+  // Encabezado: logo oficial | centro autorizado | folio
+  dibujarLogo(doc, M, y, 11);
 
   doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(negro, negro, negro);
   doc.text('CENTRO DE SERVICIO AUTORIZADO', W / 2, y + 3, { align: 'center' });
@@ -221,11 +254,6 @@ function dibujarComprobante(doc: jsPDF, yTop: number, copia: string, orden: any,
   doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5);
   if (ant > 0) { doc.setTextColor(16, 122, 64); doc.text(`APARTADO: ${money(ant)}${antForma}`, dx + 2, cy + 10.5); }
   else { doc.setTextColor(150, 150, 150); doc.text('SIN ANTICIPO / APARTADO', dx + 2, cy + 10.5); }
-  // sello NO PAGADA / PAGADA
-  const pagada = !!orden.venta;
-  doc.setDrawColor(90); doc.rect(R - 26, cy + 0.5, 25, 8);
-  doc.setFont('helvetica', 'bolditalic'); doc.setFontSize(9); doc.setTextColor(pagada ? 20 : 150, pagada ? 140 : 150, pagada ? 60 : 150);
-  doc.text(pagada ? 'PAGADA' : 'NO PAGADA', R - 13.5, cy + 5.6, { align: 'center' });
   y = cy + 17;
 
   // QR pequeno (solo copia cliente)
@@ -245,6 +273,7 @@ function dibujarComprobante(doc: jsPDF, yTop: number, copia: string, orden: any,
 
 // Comprobante de recepcion: dos copias (cliente/empresa) con corte al centro.
 export async function generarComprobanteRecepcion(orden: any, empresa?: any, baseUrl?: string) {
+  await ensureLogo();
   const origin = baseUrl || (typeof window !== 'undefined' ? window.location.origin : '');
   const url = `${origin}/portal?token=${orden.qrToken || ''}`;
   let qrData = '';
@@ -274,23 +303,33 @@ const FORMA_LABEL: Record<string, string> = {
 };
 
 // Reimprime el ticket de una venta en formato 80mm (tipo termico).
-export function generarTicketVenta(venta: any, empresa?: any) {
+export async function generarTicketVenta(venta: any, empresa?: any) {
+  await ensureLogo();
   const w = 80, mx = 5, cw = w - mx * 2;
   const det = venta.detalles || [];
-  const alto = 70 + det.length * 8 + (venta.pagos?.length || 1) * 4 + (Number(venta.anticipoAplicado) > 0 ? 8 : 0);
+  const emp = empresa || {};
+  const empLines = 1 + (emp.direccion ? 2 : 0) + ((emp.telefono || emp.telefono2) ? 1 : 0) + (emp.whatsapp ? 1 : 0) + (emp.email ? 1 : 0) + ((emp.facebook || emp.instagram || emp.sitioWeb) ? 2 : 0) + (emp.rfc ? 1 : 0);
+  const cliLines = (venta.cliente?.nombre ? 1 : 0) + (venta.cliente?.telefono ? 1 : 0) + (venta.cliente?.rfc ? 1 : 0);
+  const alto = 46 + empLines * 3 + (4 + cliLines) * 3.5 + det.length * 8 + (venta.pagos?.length || 1) * 4 + (Number(venta.anticipoAplicado) > 0 ? 8 : 0) + (Number(venta._recibido) > 0 ? 8 : 0) + 18;
   const doc = new jsPDF({ unit: 'mm', format: [w, alto] });
-  let y = 7;
+  let y = 6;
   const center = (t: string, yy: number) => doc.text(t, w / 2, yy, { align: 'center' });
   const rowLR = (l: string, r: string, yy: number) => { doc.text(l, mx, yy); doc.text(r, w - mx, yy, { align: 'right' }); };
   const sep = (yy: number) => { doc.setDrawColor(150); doc.setLineDashPattern([0.6, 0.6], 0); doc.line(mx, yy, w - mx, yy); doc.setLineDashPattern([], 0); };
 
-  dibujarMarca(doc, w / 2 - 14, y - 1);
-  doc.setFont('helvetica', 'bold'); doc.setFontSize(12); doc.setTextColor(30, 30, 30);
-  doc.text('Compuservicios', w / 2 + 2, y, { align: 'center' });
-  y += 4; doc.setFont('helvetica', 'normal'); doc.setFontSize(6); doc.setTextColor(90);
-  center('Centro de Servicio Autorizado EPSON / Canon', y);
-  y += 3; if (empresa?.rfc) { center(`RFC: ${empresa.rfc}`, y); y += 3; }
-  if (empresa?.telefono) { center(`Tel: ${empresa.telefono}`, y); y += 3; }
+  // Logo oficial centrado
+  const lw = LOGO_CACHE ? 9 * (LOGO_CACHE.w / LOGO_CACHE.h) : 42;
+  dibujarLogo(doc, (w - lw) / 2, y, 9); y += 11;
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(6); doc.setTextColor(90);
+  center('Centro de Servicio Autorizado EPSON / Canon', y); y += 3;
+  if (emp.direccion) { for (const ln of doc.splitTextToSize(String(emp.direccion), cw)) { center(ln, y); y += 2.8; } }
+  const tels = [emp.telefono, emp.telefono2].filter(Boolean).join(' / ');
+  if (tels) { center(`Tel: ${tels}`, y); y += 2.8; }
+  if (emp.whatsapp) { center(`WhatsApp: ${emp.whatsapp}`, y); y += 2.8; }
+  if (emp.email) { center(String(emp.email), y); y += 2.8; }
+  const redes = [emp.facebook && `FB: ${emp.facebook}`, emp.instagram && `IG: ${emp.instagram}`, emp.sitioWeb].filter(Boolean).join('   ');
+  if (redes) { for (const ln of doc.splitTextToSize(redes, cw)) { center(ln, y); y += 2.8; } }
+  if (emp.rfc) { center(`RFC: ${emp.rfc}`, y); y += 2.8; }
 
   y += 2; doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(30, 30, 30);
   center(TIPO_VENTA_LABEL[venta.tipo] || 'TICKET', y); y += 4;
@@ -298,7 +337,10 @@ export function generarTicketVenta(venta: any, empresa?: any) {
   center(`Folio: ${venta.folio}`, y); y += 3.5;
   center(new Date(venta.creadoEn || Date.now()).toLocaleString('es-MX'), y); y += 3.5;
   if (venta.cajero?.nombre) { center(`Atendio: ${venta.cajero.nombre}`, y); y += 3.5; }
+  // Datos del cliente (p.ej. al cobrar una orden de trabajo)
   if (venta.cliente?.nombre) { center(`Cliente: ${venta.cliente.nombre}`, y); y += 3.5; }
+  if (venta.cliente?.telefono) { center(`Tel. cliente: ${venta.cliente.telefono}`, y); y += 3.5; }
+  if (venta.cliente?.rfc) { center(`RFC cliente: ${venta.cliente.rfc}`, y); y += 3.5; }
 
   y += 1; sep(y); y += 4;
   doc.setFont('helvetica', 'bold'); doc.setFontSize(6.5); doc.setTextColor(90);
@@ -329,11 +371,20 @@ export function generarTicketVenta(venta: any, empresa?: any) {
     doc.setFont('helvetica', 'normal');
   }
   for (const p of (venta.pagos || [])) { rowLR(FORMA_LABEL[p.forma] || p.forma, money(p.monto), y); y += 4; }
+  // Efectivo recibido y cambio (si se capturó en el cobro)
+  const recibido = Number(venta._recibido) || 0;
+  if (recibido > 0) {
+    rowLR('Recibido', money(recibido), y); y += 4;
+    doc.setFont('helvetica', 'bold');
+    rowLR('Cambio', money(Math.max(0, recibido - Number(venta.total) + anticipoPrev)), y); y += 4;
+    doc.setFont('helvetica', 'normal');
+  }
 
   y += 2; sep(y); y += 4;
   doc.setFontSize(7); doc.setTextColor(90);
   center('Gracias por su preferencia', y); y += 3;
-  center(`WhatsApp: ${MARCA.whatsapp}`, y);
+  const waPie = emp.whatsapp || MARCA.whatsapp;
+  if (waPie) center(`WhatsApp: ${waPie}`, y);
 
   doc.save(`${venta.folio || 'ticket'}.pdf`);
 }
@@ -357,6 +408,7 @@ async function paginaComprobante(doc: jsPDF, orden: any, empresa: any, baseUrl: 
 // Genera un solo PDF con el comprobante de una o varias ordenes (una por pagina)
 // y lo manda a impresion directa (abre el dialogo de la impresora predeterminada).
 export async function imprimirComprobantesRecepcion(ordenes: any[], empresa?: any, baseUrl?: string) {
+  await ensureLogo();
   const doc = new jsPDF({ unit: 'mm', format: 'letter' });
   for (let i = 0; i < ordenes.length; i++) {
     if (i > 0) doc.addPage();
@@ -373,17 +425,16 @@ export async function imprimirComprobantesRecepcion(ordenes: any[], empresa?: an
 }
 
 // Reporte en PDF del resultado de búsqueda del listado de órdenes.
-export function generarReporteOrdenes(ordenes: any[], filtros: any, tecnicos: any[], empresa?: any) {
+export async function generarReporteOrdenes(ordenes: any[], filtros: any, tecnicos: any[], empresa?: any) {
+  await ensureLogo();
   const doc = new jsPDF({ unit: 'mm', format: 'letter', orientation: 'landscape' });
   const W = doc.internal.pageSize.getWidth();
   const H = doc.internal.pageSize.getHeight();
   const M = 10;
   const sky: [number, number, number] = [37, 99, 235];
 
-  // Encabezado
-  dibujarMarca(doc, M, 10);
-  doc.setFont('helvetica', 'bold'); doc.setFontSize(13); doc.setTextColor(30, 30, 30);
-  doc.text('Compuservicios', M + 16, 15);
+  // Encabezado con logo oficial
+  dibujarLogo(doc, M, 8, 10);
   doc.setFont('helvetica', 'bold'); doc.setFontSize(12); doc.setTextColor(sky[0], sky[1], sky[2]);
   doc.text('Reporte de órdenes de servicio', W - M, 14, { align: 'right' });
   doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(110);

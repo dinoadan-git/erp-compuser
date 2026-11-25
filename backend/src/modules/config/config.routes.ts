@@ -27,7 +27,10 @@ configRouter.put('/empresa', ADMIN, async (req, res, next) => {
       nombre: z.string().min(1).optional(),
       rfc: z.string().optional(), regimenFiscal: z.string().optional(), cpFiscal: z.string().optional(),
       logoUrl: z.string().optional(), direccion: z.string().optional(), telefono: z.string().optional(),
-      email: z.string().optional(), diasAbandono: z.coerce.number().min(0).optional(),
+      telefono2: z.string().optional(), whatsapp: z.string().optional(),
+      email: z.string().optional(), sitioWeb: z.string().optional(),
+      facebook: z.string().optional(), instagram: z.string().optional(),
+      diasAbandono: z.coerce.number().min(0).optional(),
     }).parse(req.body);
     const empresa = await prisma.empresa.upsert({ where: { id: 1 }, create: { id: 1, nombre: d.nombre ?? 'Mi empresa', ...d }, update: d });
     await auditar(req.user!.id, 'actualizar', 'Empresa', 1, d);

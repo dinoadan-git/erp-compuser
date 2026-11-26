@@ -7,6 +7,7 @@ import Clientes from './pages/Clientes';
 import Ordenes from './pages/Ordenes';
 import Portal from './pages/Portal';
 import Ventas from './pages/Ventas';
+import Caja from './pages/Caja';
 import Inventario from './pages/Inventario';
 import Compras from './pages/Compras';
 import Reportes from './pages/Reportes';
@@ -34,6 +35,7 @@ export default function App() {
         <Route path="/inventario" element={<Inventario />} />
         <Route path="/compras" element={<Compras />} />
         <Route path="/ventas" element={<Ventas />} />
+        <Route path="/caja" element={<Caja />} />
         <Route path="/proyectos" element={<Proyectos />} />
         <Route path="/gastos" element={<Gastos />} />
         <Route path="/reportes" element={<Reportes />} />

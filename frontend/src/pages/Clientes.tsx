@@ -6,6 +6,7 @@ export default function Clientes() {
   const [q, setQ] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [msg, setMsg] = useState('');
+  const [showNC, setShowNC] = useState(false);
   const vacio = { nombre: '', tipo: 'MOSTRADOR', telefono: '', email: '', notas: '', facturar: false, cpFiscal: '', rfc: '', regimenFiscal: '', usoCfdi: '' };
   const [f, setF] = useState<any>(vacio);
 
@@ -37,10 +38,15 @@ export default function Clientes() {
           <h1 className="text-2xl font-bold">Clientes</h1>
           <p className="text-sm text-slate-500">Administra tu directorio de clientes y datos de facturación.</p>
         </div>
-        <button onClick={() => { setShowForm(!showForm); setMsg(''); }} className={showForm ? 'btn-ghost' : 'btn-primary'}>
-          {showForm ? 'Cancelar' : (<><span className="text-base leading-none">+</span> Nuevo cliente</>)}
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={() => { setShowNC(!showNC); setMsg(''); }} className="btn-ghost">Notas de crédito</button>
+          <button onClick={() => { setShowForm(!showForm); setMsg(''); }} className={showForm ? 'btn-ghost' : 'btn-primary'}>
+            {showForm ? 'Cancelar' : (<><span className="text-base leading-none">+</span> Nuevo cliente</>)}
+          </button>
+        </div>
       </div>
+
+      {showNC && <NotasCredito onDone={cargar} />}
 
       {msg && <div className="mb-4 rounded-xl bg-primary-50 px-4 py-3 text-sm text-primary-800 ring-1 ring-primary-100">{msg}</div>}
 
@@ -120,6 +126,91 @@ export default function Clientes() {
           </tbody>
         </table>
       </div>
+    </div>
+  );
+}
+
+// Bloque de Notas de Crédito: a partir del folio de una venta, genera la nota
+// con dos destinos del valor devuelto: regresar a stock, o abonar al saldo del
+// cliente (para aplicar a un servicio o descontar de su estado de cuenta).
+function NotasCredito({ onDone }: { onDone: () => void }) {
+  const [folio, setFolio] = useState('');
+  const [venta, setVenta] = useState<any>(null);
+  const [modo, setModo] = useState<'STOCK' | 'SALDO'>('STOCK');
+  const [motivo, setMotivo] = useState('');
+  const [msg, setMsg] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  async function buscar() {
+    setVenta(null); setMsg('');
+    if (!folio.trim()) { setMsg('Captura el folio de la venta a devolver.'); return; }
+    try {
+      const { data } = await api.get('/ventas', { params: { folio: folio.trim() } });
+      const v = (data as any[]).find((x) => x.folio?.toLowerCase() === folio.trim().toLowerCase()) || data[0];
+      if (!v) { setMsg(`No se encontró la venta ${folio}.`); return; }
+      const { data: full } = await api.get(`/ventas/${v.id}`);
+      setVenta(full);
+      if (!full.clienteId) setModo('STOCK');
+    } catch (e: any) { setMsg(e?.response?.data?.error ?? 'Error al buscar la venta'); }
+  }
+
+  async function generar() {
+    if (!venta || busy) return;
+    setBusy(true); setMsg('');
+    try {
+      const { data } = await api.post(`/ventas/${venta.id}/devolucion`, { modo, motivo: motivo || undefined });
+      setMsg(modo === 'STOCK'
+        ? `Nota de crédito ${data.folio} generada. Productos reingresados a stock.`
+        : `Nota de crédito ${data.folio} generada. Se abonó ${Math.abs(Number(data.total)).toFixed(2)} al saldo del cliente.`);
+      setVenta(null); setFolio(''); setMotivo(''); onDone();
+    } catch (e: any) { setMsg(e?.response?.data?.error ?? 'Error al generar la nota de crédito'); }
+    finally { setBusy(false); }
+  }
+
+  return (
+    <div className="card mb-6">
+      <h2 className="mb-1 font-semibold text-slate-800">Notas de crédito</h2>
+      <p className="mb-3 text-xs text-slate-500">Captura el folio de la venta a devolver y elige el destino del valor: regresar a inventario o abonar al saldo del cliente.</p>
+      {msg && <div className="mb-3 rounded-lg bg-primary-50 px-3 py-2 text-sm text-primary-800">{msg}</div>}
+
+      <div className="flex flex-wrap items-end gap-2">
+        <label className="block"><span className="lbl">Folio de la venta</span>
+          <input value={folio} onChange={(e) => setFolio(e.target.value)} placeholder="TK-000123 / FA-000045" className="w-56" onKeyDown={(e) => e.key === 'Enter' && buscar()} />
+        </label>
+        <button onClick={buscar} className="btn-ghost">Buscar venta</button>
+      </div>
+
+      {venta && (
+        <div className="mt-4 rounded-xl bg-slate-50 p-4 ring-1 ring-slate-100">
+          <div className="flex flex-wrap justify-between gap-2 text-sm">
+            <div>
+              <div className="font-semibold text-slate-800">{venta.folio} · {venta.tipo}</div>
+              <div className="text-xs text-slate-500">
+                {new Date(venta.creadoEn).toLocaleString('es-MX')} · Cliente: {venta.cliente?.nombre ?? 'Mostrador (sin cliente)'}
+              </div>
+            </div>
+            <div className="text-right"><div className="text-xs text-slate-500">Total</div><div className="text-lg font-bold text-slate-900">${Number(venta.total).toFixed(2)}</div></div>
+          </div>
+
+          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+            <label className={`flex cursor-pointer items-start gap-2 rounded-lg border p-3 ${modo === 'STOCK' ? 'border-primary-400 bg-primary-50' : 'border-slate-200'}`}>
+              <input type="radio" className="mt-0.5" checked={modo === 'STOCK'} onChange={() => setModo('STOCK')} />
+              <span><span className="font-medium text-slate-800">Regresar a stock</span><br /><span className="text-xs text-slate-500">Reingresa los productos al inventario.</span></span>
+            </label>
+            <label className={`flex cursor-pointer items-start gap-2 rounded-lg border p-3 ${modo === 'SALDO' ? 'border-primary-400 bg-primary-50' : 'border-slate-200'} ${!venta.clienteId ? 'opacity-50' : ''}`}>
+              <input type="radio" className="mt-0.5" checked={modo === 'SALDO'} disabled={!venta.clienteId} onChange={() => setModo('SALDO')} />
+              <span><span className="font-medium text-slate-800">Abonar al saldo del cliente</span><br /><span className="text-xs text-slate-500">{venta.clienteId ? 'Saldo a favor para aplicar a un servicio o descontar de su estado de cuenta.' : 'Requiere que la venta tenga cliente.'}</span></span>
+            </label>
+          </div>
+
+          <div className="mt-3 flex flex-wrap items-end justify-between gap-2">
+            <label className="block flex-1 min-w-[12rem]"><span className="lbl">Motivo (opcional)</span>
+              <input value={motivo} onChange={(e) => setMotivo(e.target.value)} placeholder="Ej. producto defectuoso" />
+            </label>
+            <button onClick={generar} disabled={busy} className="btn-danger disabled:opacity-50">{busy ? 'Generando…' : 'Generar nota de crédito'}</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

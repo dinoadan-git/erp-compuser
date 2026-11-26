@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { api } from '../lib/api';
 import { generarTicketVenta } from '../lib/ordenPdf';
 
@@ -14,8 +15,6 @@ const FORMAS: { k: string; label: string }[] = [
 export default function Ventas() {
   const [vista, setVista] = useState<'pos' | 'historial'>('pos');
   const [caja, setCaja] = useState<any>(null);
-  const [fondo, setFondo] = useState('0');
-  const [arqueo, setArqueo] = useState('');
   const [q, setQ] = useState('');
   const [prods, setProds] = useState<Prod[]>([]);
   const [carrito, setCarrito] = useState<Linea[]>([]);
@@ -52,23 +51,6 @@ export default function Ventas() {
       return [...c, { productoId: p.id, nombre: p.nombre, cantidad: 1, precioUnit: Number(p.precioPublico), tasaIva: Number(p.tasaIva) }];
     });
     setQ(''); setProds([]);
-  }
-
-  async function abrirCaja() {
-    await api.post('/ventas/caja/abrir', { fondoApertura: Number(fondo) });
-    cargarCaja();
-  }
-  async function cerrarCaja() {
-    const { data } = await api.post('/ventas/caja/cerrar', { arqueo: Number(arqueo) });
-    setMsg(`Caja cerrada. Esperado efectivo: $${data.esperadoEfectivo} · Diferencia: $${data.corte.diferencia}`);
-    setArqueo(''); cargarCaja();
-  }
-  async function movimientoCaja(tipo: 'retiro' | 'ingreso') {
-    const etiqueta = tipo === 'retiro' ? 'Retiro de efectivo' : 'Abono / ingreso de efectivo';
-    const v = window.prompt(`${etiqueta} — monto:`);
-    if (!v) return;
-    try { await api.post(`/ventas/caja/${tipo}`, { monto: Number(v) }); setMsg(`${etiqueta}: $${Number(v).toFixed(2)}`); cargarCaja(); }
-    catch (e: any) { setMsg(e?.response?.data?.error ?? 'Error en el movimiento de caja'); }
   }
 
   // Formas de pago (pagos[]) según la forma elegida y el total a cubrir.
@@ -168,29 +150,20 @@ export default function Ventas() {
       {vista === 'historial' && <HistorialVentas />}
       {vista === 'pos' && (<>
 
-      {/* Barra de caja */}
+      {/* Estado de caja (apertura/cierre y movimientos se gestionan en Caja) */}
       <div className="card mb-4 flex flex-wrap items-center gap-3 text-sm">
         {caja ? (
           <>
             <span className="pill pill-green">Caja abierta</span>
-            <span className="text-slate-500">
-              Fondo: ${Number(caja.fondoApertura).toFixed(2)} · Ingresos: ${Number(caja.ingresos || 0).toFixed(2)} · Retiros: ${Number(caja.retiros).toFixed(2)}
-              {caja.resumen && <> · En caja: <b className="text-slate-700">${Number(caja.resumen.esperadoEfectivo).toFixed(2)}</b></>}
-            </span>
-            <button onClick={() => movimientoCaja('ingreso')} className="btn-ghost px-3 py-1.5 text-xs">+ Abono a caja</button>
-            <button onClick={() => movimientoCaja('retiro')} className="btn-ghost px-3 py-1.5 text-xs">− Retiro</button>
-            <div className="ml-auto flex items-center gap-2">
-              <input className="w-28" placeholder="Arqueo $" value={arqueo} onChange={(e) => setArqueo(e.target.value)} />
-              <button onClick={cerrarCaja} className="btn-ghost px-3 py-1.5">Cerrar caja</button>
-            </div>
+            {caja.resumen && <span className="text-slate-500">En caja: <b className="text-slate-700">${Number(caja.resumen.esperadoEfectivo).toFixed(2)}</b></span>}
           </>
         ) : (
           <>
             <span className="pill pill-gray">Caja cerrada</span>
-            <input className="w-28" placeholder="Fondo $" value={fondo} onChange={(e) => setFondo(e.target.value)} />
-            <button onClick={abrirCaja} className="btn-primary px-3 py-1.5">Abrir caja</button>
+            <span className="text-slate-500">Abre la caja para cobrar en efectivo.</span>
           </>
         )}
+        <Link to="/caja" className="btn-ghost ml-auto px-3 py-1.5 text-xs">Ir a Caja →</Link>
       </div>
 
       {/* Cobro de orden de trabajo (precargado desde la orden) */}

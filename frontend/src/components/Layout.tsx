@@ -7,6 +7,7 @@ const PRIMARY = [
   { to: '/clientes', label: 'Clientes' },
   { to: '/ordenes', label: 'Órdenes' },
   { to: '/ventas', label: 'Ventas (POS)' },
+  { to: '/caja', label: 'Caja' },
   { to: '/inventario', label: 'Inventario' },
   { to: '/reportes', label: 'Reportes' },
 ];

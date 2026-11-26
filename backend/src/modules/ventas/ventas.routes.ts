@@ -30,6 +30,38 @@ ventasRouter.get('/caja/actual', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// Historial de cortes de caja (para la pantalla de Caja). Se filtra por rango
+// de fechas de apertura; el frontend pagina de 7 en 7 días.
+ventasRouter.get('/caja/cortes', async (req, res, next) => {
+  try {
+    const { desde, hasta } = req.query as Record<string, string>;
+    const abiertoEn = (desde || hasta) ? {
+      gte: desde ? new Date(desde) : undefined,
+      lte: hasta ? new Date(`${hasta}T23:59:59`) : undefined,
+    } : undefined;
+    const cortes = await prisma.corteCaja.findMany({
+      where: { abiertoEn },
+      include: { usuario: { select: { id: true, nombre: true } } },
+      orderBy: { abiertoEn: 'desc' },
+      take: 200,
+    });
+    // Totales reales por corte (ventas + anticipos ligados).
+    const ids = cortes.map((c) => c.id);
+    const pagos = await prisma.pagoVenta.findMany({ where: { venta: { corteCajaId: { in: ids } } }, select: { forma: true, monto: true, venta: { select: { corteCajaId: true } } } });
+    const anticipos = await prisma.anticipoOrden.findMany({ where: { corteCajaId: { in: ids } }, select: { forma: true, monto: true, corteCajaId: true } });
+    const acum = (cid: number, forma: string) =>
+      r2(pagos.filter((p) => p.venta?.corteCajaId === cid && p.forma === forma).reduce((s, p) => s + Number(p.monto), 0)
+        + anticipos.filter((a) => a.corteCajaId === cid && a.forma === forma).reduce((s, a) => s + Number(a.monto), 0));
+    const data = cortes.map((c) => {
+      const efectivo = c.cerradoEn ? Number(c.totalEfectivo) : acum(c.id, 'EFECTIVO');
+      const tarjeta = c.cerradoEn ? Number(c.totalTarjeta) : acum(c.id, 'TARJETA');
+      const esperadoEfectivo = r2(Number(c.fondoApertura) + efectivo + Number(c.ingresos) - Number(c.retiros));
+      return { ...c, calc: { efectivo, tarjeta, esperadoEfectivo } };
+    });
+    res.json(data);
+  } catch (e) { next(e); }
+});
+
 ventasRouter.post('/caja/abrir', requireRole('CAJERO', 'RECEPCION'), async (req, res, next) => {
   try {
     const { fondoApertura } = z.object({ fondoApertura: z.coerce.number().min(0).default(0) }).parse(req.body);
@@ -323,20 +355,29 @@ ventasRouter.post('/orden/:ordenId', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-// Devolucion / nota de credito ligada a una venta original (reingresa stock).
+// Devolucion / nota de credito ligada a una venta original.
+//  - modo STOCK: reingresa el inventario de las partidas.
+//  - modo SALDO: genera saldo a favor del cliente (abona a su estado de cuenta),
+//    para aplicarlo a un servicio o descontar lo que debe; no mueve inventario.
 ventasRouter.post('/:id/devolucion', requireRole('CAJERO', 'ADMINISTRADOR'), async (req, res, next) => {
   try {
     const origenId = Number(req.params.id);
-    const { motivo } = z.object({ motivo: z.string().optional() }).parse(req.body);
+    const { motivo, modo } = z.object({
+      motivo: z.string().optional(),
+      modo: z.enum(['STOCK', 'SALDO']).default('STOCK'),
+    }).parse(req.body);
     const origen = await prisma.venta.findUnique({ where: { id: origenId }, include: { detalles: true } });
     if (!origen) return res.status(404).json({ error: 'Venta no encontrada' });
+    if (modo === 'SALDO' && !origen.clienteId) {
+      return res.status(400).json({ error: 'La venta no tiene cliente: no se puede abonar a saldo. Usa devolución a stock.' });
+    }
 
     const folio = await siguienteFolio('VENTA', 'NC-');
     const nota = await prisma.$transaction(async (tx) => {
       const nc = await tx.venta.create({
         data: {
           folio, tipo: 'NOTA_CREDITO', clienteId: origen.clienteId, cajeroId: req.user!.id,
-          ventaOrigenId: origenId, motivo,
+          ventaOrigenId: origenId, motivo: motivo ?? (modo === 'SALDO' ? 'Nota de crédito a saldo del cliente' : 'Devolución a stock'),
           subtotal: r2(-Number(origen.subtotal)), impuestos: r2(-Number(origen.impuestos)), total: r2(-Number(origen.total)),
           detalles: { create: origen.detalles.map((d) => ({
             productoId: d.productoId, descripcion: `Devolucion: ${d.descripcion}`,
@@ -346,15 +387,20 @@ ventasRouter.post('/:id/devolucion', requireRole('CAJERO', 'ADMINISTRADOR'), asy
         },
         include: { detalles: true },
       });
-      for (const d of origen.detalles) {
-        await aplicarMovimiento(tx, {
-          productoId: d.productoId, tipo: 'ENTRADA', cantidad: Number(d.cantidad),
-          motivo: `Devolucion ${folio}`, refTipo: 'VENTA', refId: String(nc.id), usuarioId: req.user!.id,
-        });
+      if (modo === 'STOCK') {
+        for (const d of origen.detalles) {
+          await aplicarMovimiento(tx, {
+            productoId: d.productoId, tipo: 'ENTRADA', cantidad: Number(d.cantidad),
+            motivo: `Devolucion ${folio}`, refTipo: 'VENTA', refId: String(nc.id), usuarioId: req.user!.id,
+          });
+        }
+      } else {
+        // Abona a favor del cliente: disminuye su saldo (lo que debe).
+        await tx.cliente.update({ where: { id: origen.clienteId! }, data: { saldo: { decrement: r2(Number(origen.total)) } } });
       }
       return nc;
     });
-    res.status(201).json(nota);
+    res.status(201).json({ ...nota, modo });
   } catch (e) { next(e); }
 });
 

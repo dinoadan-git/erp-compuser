@@ -10,8 +10,9 @@ gastosRouter.use(requireAuth);
 const ADMIN = requireRole('ADMINISTRADOR');
 
 function rango(req: { query: Record<string, unknown> }) {
-  const hasta = req.query.hasta ? new Date(String(req.query.hasta)) : new Date();
-  const desde = req.query.desde ? new Date(String(req.query.desde)) : new Date(hasta.getFullYear(), hasta.getMonth(), 1);
+  // `hasta` incluye todo el día (fin de día) para no excluir registros de hoy.
+  const hasta = req.query.hasta ? new Date(`${String(req.query.hasta)}T23:59:59.999`) : new Date();
+  const desde = req.query.desde ? new Date(`${String(req.query.desde)}T00:00:00`) : new Date(hasta.getFullYear(), hasta.getMonth(), 1);
   return { desde, hasta };
 }
 
@@ -33,14 +34,16 @@ const gastoSchema = z.object({
 gastosRouter.get('/', async (req, res, next) => {
   try {
     const { desde, hasta } = rango(req);
-    const { categoria, centroCosto } = req.query;
+    const { categoria, centroCosto, q } = req.query;
+    const texto = q ? String(q).trim() : '';
     const gastos = await prisma.gasto.findMany({
       where: {
         fecha: { gte: desde, lte: hasta },
         categoria: categoria ? String(categoria) : undefined,
         centroCosto: centroCosto ? (centroCosto as any) : undefined,
+        ...(texto ? { descripcion: { contains: texto, mode: 'insensitive' } } : {}),
       },
-      orderBy: { fecha: 'desc' }, take: 300,
+      orderBy: { fecha: 'desc' }, take: 500,
     });
     res.json(gastos);
   } catch (e) { next(e); }
@@ -131,30 +134,78 @@ gastosRouter.post('/caja-chica/reposicion', async (req, res, next) => {
 });
 
 // ------------------------------------------------------------------
-// NOMINA = % sobre lo cobrado en ordenes de trabajo del periodo
+// NOMINA = % sobre el SERVICIO (mano de obra + diagnostico) de las ordenes
+// cobradas en el periodo. NO incluye refacciones ni insumos de inventario.
+// El porcentaje es un valor global configurable.
 // ------------------------------------------------------------------
 
-// Base: total cobrado (ventas ligadas a ordenes de trabajo entregadas en el
-// periodo). La nomina es ese total * porcentaje. El porcentaje es configurable
-// por quincena (lo define el usuario segun su regla de negocio).
+const NOMINA_KEY = 'nomina_porcentaje';
+
+async function porcentajeConfigurado(): Promise<number> {
+  const row = await prisma.configuracion.findUnique({ where: { clave: NOMINA_KEY } });
+  const v = row?.valor as any;
+  return typeof v === 'number' ? v : (v?.porcentaje ?? 0);
+}
+
+// Base por orden = mano de obra (cotizacion) o, si no hay cotizacion, el costo de
+// diagnostico. Nunca incluye refacciones/consumos de inventario.
+function servicioDeOrden(o: { cotizacionTotal: any; costoDiagnostico: any }): number {
+  const labor = Number(o.cotizacionTotal) || 0;
+  const diag = Number(o.costoDiagnostico) || 0;
+  return labor > 0 ? labor : diag;
+}
+
 async function calcularNomina(desde: Date, hasta: Date, porcentaje: number) {
+  // Ordenes cobradas en el periodo (venta ligada, por fecha de cobro).
   const ventas = await prisma.venta.findMany({
     where: {
       tipo: { in: ['TICKET', 'FACTURA'] },
       ordenTrabajoId: { not: null },
       creadoEn: { gte: desde, lte: hasta },
     },
-    select: { total: true, ordenTrabajoId: true },
+    select: {
+      folio: true, creadoEn: true,
+      ordenTrabajo: { select: { folio: true, cotizacionTotal: true, costoDiagnostico: true, tecnico: { select: { id: true, nombre: true } } } },
+    },
+    orderBy: { creadoEn: 'asc' },
   });
-  const base = r2(ventas.reduce((s, v) => s + Number(v.total), 0));
+
+  const porTec = new Map<number, { tecnicoId: number | null; nombre: string; baseServicio: number; ordenes: number }>();
+  const detalle: any[] = [];
+  let base = 0;
+  for (const v of ventas) {
+    const o = v.ordenTrabajo; if (!o) continue;
+    const servicio = servicioDeOrden(o);
+    base += servicio;
+    const tec = o.tecnico; const key = tec?.id ?? 0;
+    const cur = porTec.get(key) ?? { tecnicoId: tec?.id ?? null, nombre: tec?.nombre ?? 'Sin técnico asignado', baseServicio: 0, ordenes: 0 };
+    cur.baseServicio += servicio; cur.ordenes += 1; porTec.set(key, cur);
+    detalle.push({ ventaFolio: v.folio, ordenFolio: o.folio, fecha: v.creadoEn, tecnico: tec?.nombre ?? 'Sin técnico asignado', servicio: r2(servicio) });
+  }
+  base = r2(base);
   const nomina = r2(base * (porcentaje / 100));
-  return { base, porcentaje, nomina, ordenesCobradas: ventas.length };
+  const porTecnico = [...porTec.values()].map((t) => ({
+    ...t, baseServicio: r2(t.baseServicio), pago: r2(t.baseServicio * (porcentaje / 100)),
+  }));
+  return { base, porcentaje, nomina, ordenesCobradas: ventas.length, porTecnico, detalle };
 }
+
+// Porcentaje global configurado.
+gastosRouter.get('/nomina/config', async (_req, res, next) => {
+  try { res.json({ porcentaje: await porcentajeConfigurado() }); } catch (e) { next(e); }
+});
+gastosRouter.put('/nomina/config', ADMIN, async (req, res, next) => {
+  try {
+    const { porcentaje } = z.object({ porcentaje: z.coerce.number().min(0).max(100) }).parse(req.body);
+    await prisma.configuracion.upsert({ where: { clave: NOMINA_KEY }, create: { clave: NOMINA_KEY, valor: { porcentaje } }, update: { valor: { porcentaje } } });
+    res.json({ porcentaje });
+  } catch (e) { next(e); }
+});
 
 gastosRouter.get('/nomina/calcular', async (req, res, next) => {
   try {
     const { desde, hasta } = rango(req);
-    const porcentaje = Number(req.query.porcentaje ?? 0);
+    const porcentaje = req.query.porcentaje != null ? Number(req.query.porcentaje) : await porcentajeConfigurado();
     res.json({ periodo: { desde, hasta }, ...(await calcularNomina(desde, hasta, porcentaje)) });
   } catch (e) { next(e); }
 });
